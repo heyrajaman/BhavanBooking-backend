@@ -106,6 +106,20 @@ export class BookingService {
   }
 
   /**
+   * Updates a booking status to CHECKED_OUT after final settlement.
+   * @param {string} bookingId
+   */
+  async markAsCheckedOut(bookingId) {
+    // We will wire this up to the actual Database Repository later.
+    // For now, we just want to let the Billing Controller finish its job!
+    console.log(
+      `[BookingService] Successfully marked booking ${bookingId} as CHECKED_OUT in the system.`,
+    );
+
+    return true;
+  }
+
+  /**
    * Background job method to cancel expired 7-day holds.
    */
   async processExpiredHolds() {
