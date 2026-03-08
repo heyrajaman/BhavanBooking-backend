@@ -9,6 +9,7 @@ import morgan from "morgan";
 import bookingRoutes from "./modules/booking/routes/booking.routes.js";
 import authRoutes from "./modules/user/routes/auth.routes.js";
 import facilityRoutes from "./modules/facility/routes/facility.routes.js";
+import billingRoutes from "./modules/billing/routes/billing.routes.js";
 
 // Import the error handler and custom error class
 import { globalErrorHandler } from "./middlewares/error.middleware.js";
@@ -26,6 +27,7 @@ app.use(morgan("dev")); // Logs API requests to the terminal
 app.use("/api/v1/auth", authRoutes);
 app.use("/api/v1/facilities", facilityRoutes);
 app.use("/api/v1/bookings", bookingRoutes);
+app.use("/api/v1/billing", billingRoutes);
 // app.use('/api/v1/users', userRoutes);
 
 // 3. Handle unhandled routes (404)
