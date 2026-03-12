@@ -1,3 +1,4 @@
+// bbs-backend/src/modules/user/model/user.model.js
 import { Model, DataTypes } from "sequelize";
 
 export default class User extends Model {
@@ -28,13 +29,13 @@ export default class User extends Model {
           allowNull: false,
         },
         role: {
-          type: DataTypes.ENUM("ADMIN", "CLERK", "GUEST"),
+          type: DataTypes.ENUM("ADMIN", "CLERK", "USER"),
           allowNull: false,
-          defaultValue: "GUEST",
+          defaultValue: "USER",
         },
         aadhaarNumber: {
           type: DataTypes.STRING(12),
-          allowNull: true, // Optional during signup, mandatory at check-in [cite: 115]
+          allowNull: true, // Optional during user signup, can be filled later
         },
         address: {
           type: DataTypes.TEXT,

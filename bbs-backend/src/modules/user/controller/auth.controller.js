@@ -1,3 +1,4 @@
+// bbs-backend/src/modules/user/controller/auth.controller.js
 import { AuthService } from "../service/auth.service.js";
 
 export class AuthController {
@@ -5,11 +6,11 @@ export class AuthController {
     this.authService = new AuthService();
   }
 
-  register = async (req, res, next) => {
-    // In a strict flow, you would validate this with a DTO first
+  registerUser = async (req, res, next) => {
+    // The DTO validation middleware will ensure req.body is already clean before hitting this point
     const userData = req.body;
 
-    const newUser = await this.authService.register(userData);
+    const newUser = await this.authService.registerUser(userData);
 
     return res.status(201).json({
       success: true,
@@ -18,16 +19,15 @@ export class AuthController {
     });
   };
 
-  login = async (req, res, next) => {
+  loginUser = async (req, res, next) => {
     const { mobile, password } = req.body;
 
-    // Pass the raw data to the service
-    const result = await this.authService.login(mobile, password);
+    const result = await this.authService.loginUser(mobile, password);
 
     return res.status(200).json({
       success: true,
-      message: "Login successful",
-      data: result,
+      message: "User login successful",
+      data: result, // This object now contains the specific userAccessToken
     });
   };
 }
