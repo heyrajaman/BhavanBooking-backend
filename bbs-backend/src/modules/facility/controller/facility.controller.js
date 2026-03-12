@@ -1,3 +1,4 @@
+// src/modules/facility/controller/facility.controller.js
 import { FacilityService } from "../service/facility.service.js";
 
 export class FacilityController {
@@ -5,22 +6,12 @@ export class FacilityController {
     this.facilityService = new FacilityService();
   }
 
-  createFacility = async (req, res) => {
-    // req.body contains the facility details (name, baseRate, etc.)
-    const newFacility = await this.facilityService.createFacility(req.body);
-
-    return res.status(201).json({
-      success: true,
-      message: "Facility added to inventory successfully",
-      data: newFacility,
-    });
-  };
-
-  getAllFacilities = async (req, res) => {
+  getAllFacilities = async (req, res, next) => {
     const facilities = await this.facilityService.getAllFacilities();
 
     return res.status(200).json({
       success: true,
+      message: "Facilities retrieved successfully",
       data: facilities,
     });
   };

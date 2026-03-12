@@ -1,22 +1,29 @@
+// src/modules/booking/dto/booking.response.dto.js
 export class BookingResponseDto {
-  constructor(bookingModel, facilities = []) {
-    this.bookingReference = bookingModel.bookingReference;
+  constructor(bookingModel, facilityModel = null) {
+    this.id = bookingModel.id;
     this.status = bookingModel.status;
     this.eventType = bookingModel.eventType;
+    this.guestCount = bookingModel.guestCount;
+
     this.schedule = {
-      checkIn: bookingModel.startDatetime,
-      checkOut: bookingModel.endDatetime, // Standard 8:00 AM [cite: 77]
+      startTime: bookingModel.startTime,
+      endTime: bookingModel.endTime,
     };
-    this.facilitiesBooked = facilities.map((f) => ({
-      name: f.name,
-      type: f.facilityType,
-      rateApplied: f.BookingFacility
-        ? f.BookingFacility.lockedRate
-        : f.baseRatePerDay,
-    }));
-    this.rulesApplied = {
-      vegetarianOnly: bookingModel.isVegetarianOnly,
-      noDj: bookingModel.isDjProhibited,
+
+    this.financials = {
+      calculatedAmount: bookingModel.calculatedAmount,
+      securityDeposit: bookingModel.securityDeposit,
+      advanceAmountRequested: bookingModel.advanceAmountRequested,
+      paymentStatus: bookingModel.paymentStatus,
     };
+
+    if (facilityModel) {
+      this.facility = {
+        id: facilityModel.id,
+        name: facilityModel.name,
+        facilityType: facilityModel.facilityType,
+      };
+    }
   }
 }

@@ -10,12 +10,25 @@ export default class Facility extends Model {
           primaryKey: true,
         },
         name: {
-          type: DataTypes.STRING(100),
+          type: DataTypes.STRING(255),
           allowNull: false,
         },
+        description: {
+          type: DataTypes.TEXT,
+          allowNull: true,
+        },
         facilityType: {
-          type: DataTypes.ENUM("COMPLEX", "HALL", "ROOM", "LAWN"),
+          // Added 'PACKAGE' and 'ITEM' to cover the Complete Bhavan and Mattress/Extra Bed
+          type: DataTypes.ENUM(
+            "COMPLEX",
+            "HALL",
+            "ROOM",
+            "LAWN",
+            "PACKAGE",
+            "ITEM",
+          ),
           allowNull: false,
+          defaultValue: "HALL",
         },
         parentFacilityId: {
           type: DataTypes.UUID,
@@ -25,13 +38,29 @@ export default class Facility extends Model {
             key: "id",
           },
         },
-        baseRatePerDay: {
+        pricingType: {
+          // Determines how the backend calculates the bill
+          type: DataTypes.ENUM("TIERED", "SLOT", "HOURLY", "FIXED", "PER_ITEM"),
+          allowNull: false,
+          defaultValue: "FIXED",
+        },
+        baseRate: {
           type: DataTypes.DECIMAL(10, 2),
           allowNull: false,
         },
+        pricingDetails: {
+          type: DataTypes.JSON,
+          allowNull: true,
+          // Example: { "1_day": 130000, "2_days": 230000, "3_days": 310000 }
+        },
+        securityDeposit: {
+          type: DataTypes.DECIMAL(10, 2),
+          allowNull: false,
+          defaultValue: 0.0, // ₹25,000 for big packages, ₹0 for mattresses
+        },
         maxCapacity: {
           type: DataTypes.INTEGER,
-          allowNull: true, // e.g., 6 for rooms [cite: 116, 144]
+          allowNull: true,
         },
         isActive: {
           type: DataTypes.BOOLEAN,

@@ -14,4 +14,20 @@ export class FacilityRepository {
       },
     });
   }
+
+  /**
+   * Fetches a single facility by its primary key (ID).
+   */
+  async findById(id) {
+    return await Facility.findByPk(id);
+  }
+
+  /**
+   * Fetches all available facilities/packages
+   */
+  async findAll() {
+    return await Facility.findAll({
+      where: { isActive: true },
+    });
+  }
 }
