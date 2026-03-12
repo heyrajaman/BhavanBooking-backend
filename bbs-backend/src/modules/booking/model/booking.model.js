@@ -1,3 +1,4 @@
+// src/modules/booking/model/booking.model.js
 import { Model, DataTypes } from "sequelize";
 
 export default class Booking extends Model {
@@ -9,51 +10,58 @@ export default class Booking extends Model {
           defaultValue: DataTypes.UUIDV4,
           primaryKey: true,
         },
-        bookingReference: {
-          type: DataTypes.STRING(20),
-          allowNull: false,
-          unique: true,
-        },
         userId: {
           type: DataTypes.UUID,
           allowNull: false,
         },
+        facilityId: {
+          type: DataTypes.UUID,
+          allowNull: false,
+        },
+        startTime: {
+          type: DataTypes.DATE,
+          allowNull: false,
+        },
+        endTime: {
+          type: DataTypes.DATE,
+          allowNull: false,
+        },
         eventType: {
           type: DataTypes.STRING(100),
-          allowNull: false,
-        },
-        startDatetime: {
-          type: DataTypes.DATE,
-          allowNull: false, // Standard 10:00 AM [cite: 77, 144]
-        },
-        endDatetime: {
-          type: DataTypes.DATE,
-          allowNull: false, // Standard 8:00 AM next day [cite: 77, 144]
-        },
-        status: {
-          type: DataTypes.ENUM(
-            "INQUIRY",
-            "HOLD",
-            "CONFIRMED",
-            "CHECKED_IN",
-            "CHECKED_OUT",
-            "CANCELLED",
-          ),
-          defaultValue: "INQUIRY",
-          allowNull: false,
+          allowNull: false, // e.g., "Marriage", "Meeting", "Cultural Event"
         },
         guestCount: {
           type: DataTypes.INTEGER,
           allowNull: false,
-          defaultValue: 1,
         },
-        isVegetarianOnly: {
-          type: DataTypes.BOOLEAN,
-          defaultValue: true, // Enforcing BR-01
+        status: {
+          // The exact State Machine flow we designed
+          type: DataTypes.ENUM(
+            "PENDING_CLERK_REVIEW",
+            "PENDING_ADMIN_APPROVAL",
+            "PENDING_ADVANCE_PAYMENT",
+            "CONFIRMED",
+            "REJECTED",
+            "CANCELLED",
+          ),
+          allowNull: false,
+          defaultValue: "PENDING_CLERK_REVIEW", // Form always goes to the Clerk first
         },
-        isDjProhibited: {
-          type: DataTypes.BOOLEAN,
-          defaultValue: true, // Enforcing BR-22 [cite: 125, 144]
+        calculatedAmount: {
+          type: DataTypes.DECIMAL(10, 2),
+          allowNull: true, // The backend service will calculate this
+        },
+        securityDeposit: {
+          type: DataTypes.DECIMAL(10, 2),
+          allowNull: true, // Extracted from the Facility package
+        },
+        advanceAmountRequested: {
+          type: DataTypes.DECIMAL(10, 2),
+          allowNull: true, // The Clerk will fill this in when they push to PENDING_ADVANCE_PAYMENT
+        },
+        paymentStatus: {
+          type: DataTypes.ENUM("PENDING", "PARTIAL", "COMPLETED", "REFUNDED"),
+          defaultValue: "PENDING",
         },
       },
       {
@@ -66,16 +74,11 @@ export default class Booking extends Model {
   }
 
   static associate(models) {
+    // A Booking belongs to a User and a Facility
     Booking.belongsTo(models.User, { foreignKey: "userId", as: "user" });
-
-    // Many-to-Many with Facility
-    Booking.belongsToMany(models.Facility, {
-      through: models.BookingFacility,
-      foreignKey: "bookingId",
-      as: "facilities",
+    Booking.belongsTo(models.Facility, {
+      foreignKey: "facilityId",
+      as: "facility",
     });
-
-    // One-to-One with Invoice (Billing Module)
-    Booking.hasOne(models.Invoice, { foreignKey: "bookingId", as: "invoice" });
   }
 }

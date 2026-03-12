@@ -1,3 +1,4 @@
+// src/modules/booking/controller/booking.controller.js
 import { BookingService } from "../service/booking.service.js";
 
 export class BookingController {
@@ -5,28 +6,25 @@ export class BookingController {
     this.bookingService = new BookingService();
   }
 
-  // Use arrow functions to auto-bind 'this', a common pattern in JS classes
   createBooking = async (req, res, next) => {
-    try {
-      // req.body is already validated by our DTO middleware at the router level
-      const bookingDto = req.body;
+    // 1. req.user is securely injected by your `protect` auth middleware
+    const userId = req.user.id;
 
-      const result =
-        await this.bookingService.createProvisionalBooking(bookingDto);
+    // 2. req.body is fully validated and structured by your `CreateBookingDto`
+    const bookingData = req.body;
 
-      // Return a standard 201 Created response
-      return res.status(201).json({
-        success: true,
-        message:
-          "Provisional booking created. Please pay 20% advance within 7 days to confirm.",
-        data: {
-          bookingReference: result.bookingReference,
-          status: result.status,
-        },
-      });
-    } catch (error) {
-      // Pass the error to the global error handling middleware
-      next(error);
-    }
+    // 3. Pass to the service for pricing calculation and database insertion
+    const newBooking = await this.bookingService.createBooking(
+      userId,
+      bookingData,
+    );
+
+    // 4. Return success response
+    return res.status(201).json({
+      success: true,
+      message:
+        "Booking request submitted successfully. It is now pending Clerk review.",
+      data: newBooking,
+    });
   };
 }

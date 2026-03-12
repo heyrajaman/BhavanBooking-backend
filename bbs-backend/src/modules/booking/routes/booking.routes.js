@@ -1,44 +1,20 @@
+// src/modules/booking/routes/booking.routes.js
 import { Router } from "express";
 import { BookingController } from "../controller/booking.controller.js";
-
-// Middlewares
 import { validateDto } from "../../../middlewares/validate.js";
-import {
-  protectRoute,
-  restrictTo,
-} from "../../../middlewares/auth.middleware.js";
-
-// DTOs
-import { CreateBookingRequestDto } from "../dto/booking.request.dto.js";
-
-// Utilities
+import { CreateBookingDto } from "../dto/booking.request.dto.js";
+import { protect } from "../../../middlewares/auth.middleware.js";
 import { catchAsync } from "../../../utils/catchAsync.js";
 
 const router = Router();
 const bookingController = new BookingController();
 
-/**
- * ==========================================
- * BOOKING API ROUTES (/api/v1/bookings)
- * ==========================================
- */
-
-// 1. CREATE BOOKING APPLICATION
-// Access: Logged-in Users (Admin, Clerk, Guest)
+// POST /api/v1/bookings - Submit a new booking form
 router.post(
   "/",
-  protectRoute,
-  validateDto(CreateBookingRequestDto),
-  catchAsync(bookingController.createBooking), // No more try/catch needed inside the controller!
-);
-
-// 2. CANCEL BOOKING
-// Access: ONLY System Administrator [cite: 41, 42, 43, 44]
-router.post(
-  "/:id/cancel",
-  protectRoute,
-  restrictTo("ADMIN"),
-  catchAsync(bookingController.cancelBooking),
+  protect, // 1. Ensure the user is logged in
+  validateDto(CreateBookingDto), // 2. Validate the incoming form payload
+  catchAsync(bookingController.createBooking), // 3. Execute the controller logic
 );
 
 export default router;

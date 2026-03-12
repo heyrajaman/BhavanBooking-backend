@@ -1,27 +1,28 @@
+// src/modules/booking/repository/booking.repository.js
 import { Op } from "sequelize";
 import Booking from "../model/booking.model.js";
-// Note: In ES Modules, we must include the .js extension in local imports.
 
 export class BookingRepository {
   /**
-   * Checks if a facility is already booked for the given dates.
-   * This handles the "First Come, First Served" requirement.
+   * Saves the booking to the database.
    */
-  async checkFacilityOverlap(facilityIds, startDatetime, endDatetime) {
-    // In a real implementation, we would also query the BookingFacility junction table.
-    // We look for any overlapping dates where status is not CANCELLED.
+  async create(bookingData, transaction = null) {
+    return await Booking.create(bookingData, { transaction });
+  }
+
+  /**
+   * Checks if a specific facility is already booked for the given dates.
+   */
+  async checkFacilityOverlap(facilityId, startTime, endTime) {
     const overlappingBookings = await Booking.findAll({
       where: {
+        facilityId: facilityId,
         status: {
-          [Op.ne]: "CANCELLED", // Ignore cancelled bookings
+          [Op.notIn]: ["CANCELLED", "REJECTED"], // Ignore cancelled or rejected bookings
         },
         [Op.or]: [
-          {
-            startDatetime: { [Op.between]: [startDatetime, endDatetime] },
-          },
-          {
-            endDatetime: { [Op.between]: [startDatetime, endDatetime] },
-          },
+          { startTime: { [Op.between]: [startTime, endTime] } },
+          { endTime: { [Op.between]: [startTime, endTime] } },
         ],
       },
     });
@@ -29,38 +30,5 @@ export class BookingRepository {
     return overlappingBookings.length > 0;
   }
 
-  /**
-   * Saves the booking to the database.
-   */
-  async createBooking(bookingData, transaction = null) {
-    return await Booking.create(bookingData, { transaction });
-  }
-
-  /**
-   * Finds all HOLD bookings that were created before a specific date.
-   */
-  async findExpiredHolds(cutoffDate) {
-    return await Booking.findAll({
-      where: {
-        status: "HOLD",
-        createdAt: {
-          [Op.lt]: cutoffDate, // less than (older than) the cutoff date
-        },
-      },
-    });
-  }
-
-  /**
-   * Bulk updates the status of specific bookings.
-   */
-  async cancelBookings(bookingIds) {
-    return await Booking.update(
-      { status: "CANCELLED" },
-      {
-        where: {
-          id: { [Op.in]: bookingIds },
-        },
-      },
-    );
-  }
+  // Note: We removed the old "HOLD" logic here. We will add a new payment expiration query later!
 }

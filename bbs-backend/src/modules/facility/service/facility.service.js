@@ -1,19 +1,12 @@
-import Facility from "../model/facility.model.js";
+// src/modules/facility/service/facility.service.js
+import { FacilityRepository } from "../repository/facility.repository.js";
 
 export class FacilityService {
-  /**
-   * Creates a new facility/venue in the system.
-   */
-  async createFacility(facilityData) {
-    return await Facility.create(facilityData);
+  constructor() {
+    this.facilityRepository = new FacilityRepository();
   }
 
-  /**
-   * Fetches all active facilities.
-   */
   async getAllFacilities() {
-    return await Facility.findAll({
-      where: { isActive: true },
-    });
+    return await this.facilityRepository.findAll();
   }
 }
