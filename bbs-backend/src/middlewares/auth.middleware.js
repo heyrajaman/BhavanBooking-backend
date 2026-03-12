@@ -1,52 +1,52 @@
+// src/middlewares/auth.middleware.js
 import jwt from "jsonwebtoken";
 import { AppError } from "../utils/AppError.js";
+import { UserRepository } from "../modules/user/repository/user.repository.js";
+import { catchAsync } from "../utils/catchAsync.js";
 
-/**
- * Middleware to verify if the user is logged in (has a valid token).
- */
-export const protectRoute = (req, res, next) => {
-  try {
-    let token;
+const userRepository = new UserRepository();
 
-    // Check if the token was sent in the Authorization header
-    if (
-      req.headers.authorization &&
-      req.headers.authorization.startsWith("Bearer")
-    ) {
-      token = req.headers.authorization.split(" ")[1];
-    }
-
-    if (!token) {
-      throw new AppError(
-        "You are not logged in. Please log in to get access.",
-        401,
-      );
-    }
-
-    // Verify the token
-    const decoded = jwt.verify(token, process.env.JWT_SECRET);
-
-    // Attach the decoded user payload (id, role) to the Express request object
-    // This allows subsequent controllers to know exactly who made the request
-    req.user = decoded;
-
-    next(); // Pass control to the next middleware or controller
-  } catch (error) {
-    // Catch expired or tampered tokens
-    next(new AppError("Invalid or expired token. Please log in again.", 401));
+export const protect = catchAsync(async (req, res, next) => {
+  // 1. Get the token from the Authorization header
+  let token;
+  if (
+    req.headers.authorization &&
+    req.headers.authorization.startsWith("Bearer")
+  ) {
+    token = req.headers.authorization.split(" ")[1];
   }
-};
 
-/**
- * Middleware to restrict access based on user roles.
- * @param {...string} roles - An array of allowed roles (e.g., 'ADMIN', 'CLERK')
- */
+  if (!token) {
+    return next(
+      new AppError("You are not logged in! Please log in to get access.", 401),
+    );
+  }
+
+  // 2. Verify the token
+  const decoded = jwt.verify(token, process.env.JWT_SECRET);
+
+  // 3. Check if the user still exists in the database
+  const currentUser = await userRepository.findById(decoded.id);
+  if (!currentUser) {
+    return next(
+      new AppError("The user belonging to this token no longer exists.", 401),
+    );
+  }
+
+  // 4. Attach the user to the request object and proceed
+  req.user = currentUser;
+  next();
+});
+
+// Backwards-compatible alias used across route modules
+export const protectRoute = protect;
+
 export const restrictTo = (...roles) => {
   return (req, res, next) => {
-    // req.user is set by the protectRoute middleware
+    // Check if the current user's role is in the array of permitted roles
     if (!roles.includes(req.user.role)) {
       return next(
-        new AppError("You do not have permission to perform this action.", 403),
+        new AppError("You do not have permission to perform this action", 403),
       );
     }
     next();
