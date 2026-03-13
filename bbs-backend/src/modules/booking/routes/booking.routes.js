@@ -9,6 +9,20 @@ import { protect, restrictTo } from "../../../middlewares/auth.middleware.js";
 const router = Router();
 const bookingController = new BookingController();
 
+// GET /api/v1/bookings/facility/:facilityId/unavailable-dates
+// Public route for the frontend calendar to fetch blocked dates
+router.get(
+  "/facility/:facilityId/unavailable-dates",
+  catchAsync(bookingController.getUnavailableDates),
+);
+
+// POST /api/v1/bookings/check-availability
+// Public route for the frontend to verify dates and get a price quote
+router.post(
+  "/check-availability",
+  catchAsync(bookingController.checkAvailability),
+);
+
 // POST /api/v1/bookings - Submit a new booking form
 router.post(
   "/",

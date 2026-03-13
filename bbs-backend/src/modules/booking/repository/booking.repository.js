@@ -12,8 +12,6 @@ export class BookingRepository {
     return await Booking.create(bookingData, { transaction });
   }
 
-  // src/modules/booking/repository/booking.repository.js
-
   async checkFacilityOverlap(
     facilityId,
     startTime,
@@ -39,5 +37,23 @@ export class BookingRepository {
     const overlappingBookings = await Booking.findAll({ where: whereClause });
 
     return overlappingBookings.length > 0;
+  }
+
+  /**
+   * Fetches all upcoming bookings for a specific facility to block calendar dates.
+   */
+  async findActiveBookingsForFacility(facilityId) {
+    return await Booking.findAll({
+      where: {
+        facilityId: facilityId,
+        status: {
+          [Op.notIn]: ["CANCELLED", "REJECTED"], // Block dates even if they are still pending payment/review
+        },
+        endTime: {
+          [Op.gte]: new Date(), // Only fetch bookings that end today or in the future
+        },
+      },
+      attributes: ["startTime", "endTime", "status"], // Only fetch the data the calendar actually needs
+    });
   }
 }
