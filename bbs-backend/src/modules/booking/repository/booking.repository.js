@@ -56,4 +56,15 @@ export class BookingRepository {
       attributes: ["startTime", "endTime", "status"], // Only fetch the data the calendar actually needs
     });
   }
+
+  /**
+   * Fetches a list of bookings based on filters (like status)
+   * Sorted by newest first.
+   */
+  async findAll(filters = {}) {
+    return await Booking.findAll({
+      where: filters,
+      order: [["createdAt", "DESC"]], // Show newest bookings at the top
+    });
+  }
 }
