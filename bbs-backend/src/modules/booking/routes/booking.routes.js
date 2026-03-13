@@ -23,6 +23,13 @@ router.post(
   catchAsync(bookingController.checkAvailability),
 );
 
+// GET /api/v1/bookings/my-bookings - Fetch user's own booking history
+router.get(
+  "/my-bookings",
+  protect, // Ensure the user is logged in (this attaches req.user.id)
+  catchAsync(bookingController.getMyBookings),
+);
+
 // POST /api/v1/bookings - Submit a new booking form
 router.post(
   "/",

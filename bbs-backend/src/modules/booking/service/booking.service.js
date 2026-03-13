@@ -101,6 +101,15 @@ export class BookingService {
   }
 
   /**
+   * Fetches all bookings belonging to a specific user.
+   */
+  async getMyBookings(userId) {
+    // We reuse your flexible findAll repository method here!
+    const bookings = await this.bookingRepository.findAll({ userId });
+    return bookings;
+  }
+
+  /**
    * Internal calculation engine to parse the JSON pricing rules
    */
   _calculatePrice(facility, startTime, endTime) {
