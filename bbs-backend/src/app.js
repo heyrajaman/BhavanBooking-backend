@@ -11,6 +11,7 @@ import authRoutes from "./modules/user/routes/auth.routes.js";
 import facilityRoutes from "./modules/facility/routes/facility.routes.js";
 import billingRoutes from "./modules/billing/routes/billing.routes.js";
 import adminAuthRoutes from "./modules/admin/routes/admin.auth.routes.js";
+import paymentRoutes from "./modules/payment/routes/payment.routes.js";
 
 // Import the error handler and custom error class
 import { globalErrorHandler } from "./middlewares/error.middleware.js";
@@ -30,7 +31,7 @@ app.use("/api/v1/auth/admin", adminAuthRoutes);
 app.use("/api/v1/facilities", facilityRoutes);
 app.use("/api/v1/bookings", bookingRoutes);
 app.use("/api/v1/billing", billingRoutes);
-// app.use('/api/v1/users', userRoutes);
+app.use("/api/v1/payments", paymentRoutes);
 
 // 3. Handle unhandled routes (404)
 app.use((req, res, next) => {
