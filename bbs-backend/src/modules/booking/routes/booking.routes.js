@@ -31,20 +31,4 @@ router.post(
   catchAsync(bookingController.createBooking), // 3. Execute the controller logic
 );
 
-// PATCH /api/v1/bookings/:id/verify-availability
-// Only Clerks can perform this action
-router.patch(
-  "/:id/verify-availability",
-  protect,
-  restrictTo("CLERK"), // Blocks standard users and admins from doing the clerk's job
-  catchAsync(bookingController.verifyByClerk),
-);
-
-router.patch(
-  "/:id/approve",
-  protect,
-  restrictTo("ADMIN"), // Blocks standard users and Clerks
-  catchAsync(bookingController.approveByAdmin),
-);
-
 export default router;

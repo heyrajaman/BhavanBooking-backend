@@ -28,37 +28,6 @@ export class BookingController {
     });
   };
 
-  // Add this inside BookingController class
-  verifyByClerk = async (req, res, next) => {
-    const { id } = req.params; // The booking ID from the URL
-
-    const updatedBooking = await this.bookingService.verifyByClerk(id);
-
-    return res.status(200).json({
-      success: true,
-      message:
-        "Availability verified. Booking forwarded to Admin for approval.",
-      data: updatedBooking,
-    });
-  };
-
-  // Add this inside BookingController class
-  approveByAdmin = async (req, res, next) => {
-    const { id } = req.params;
-    const { advanceAmount } = req.body; // Admin can optionally specify an exact advance amount
-
-    const updatedBooking = await this.bookingService.approveByAdmin(
-      id,
-      advanceAmount,
-    );
-
-    return res.status(200).json({
-      success: true,
-      message: "Booking approved by Admin. Awaiting advance payment from User.",
-      data: updatedBooking,
-    });
-  };
-
   /**
    * Handles the request to fetch unavailable dates for a facility's calendar.
    */
