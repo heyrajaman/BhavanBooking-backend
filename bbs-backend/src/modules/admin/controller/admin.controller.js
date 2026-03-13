@@ -1,3 +1,4 @@
+import { BookingDetailResponseDto } from "../../booking/dto/booking.response.dto.js";
 import { AdminService } from "../service/admin.service.js";
 
 export class AdminController {
@@ -86,6 +87,25 @@ export class AdminController {
         success: true,
         message: "Booking successfully verified by Clerk.",
         data: { status: updatedBooking.status },
+      });
+    } catch (error) {
+      next(error);
+    }
+  };
+
+  getBookingDetails = async (req, res, next) => {
+    try {
+      const { bookingId } = req.params;
+      const bookingDetails =
+        await this.adminService.getBookingDetails(bookingId);
+
+      // Map the raw database result to our strict Admin DTO
+      const responseData = new BookingDetailResponseDto(bookingDetails);
+
+      return res.status(200).json({
+        success: true,
+        message: "Booking details fetched successfully",
+        data: responseData,
       });
     } catch (error) {
       next(error);

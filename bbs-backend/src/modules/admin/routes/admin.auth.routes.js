@@ -42,6 +42,14 @@ router.get(
   catchAsync(adminController.getAllBookings),
 );
 
+// GET /api/v1/auth/admin/bookings/:bookingId (Detail View for Admin and Clerk)
+router.get(
+  "/bookings/:bookingId",
+  protect,
+  restrictTo("ADMIN", "CLERK"), // Both roles need to see the full details
+  catchAsync(adminController.getBookingDetails),
+);
+
 // PATCH /api/v1/auth/admin/bookings/:bookingId/verify (ONLY for Clerks)
 router.patch(
   "/bookings/:bookingId/verify",

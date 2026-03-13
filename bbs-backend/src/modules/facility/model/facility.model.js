@@ -88,8 +88,7 @@ export default class Facility extends Model {
     });
 
     // Many-to-Many with Booking
-    Facility.belongsToMany(models.Booking, {
-      through: models.BookingFacility,
+    Facility.hasMany(models.Booking, {
       foreignKey: "facilityId",
       as: "bookings",
     });
