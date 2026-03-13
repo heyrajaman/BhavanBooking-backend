@@ -1,4 +1,5 @@
 // src/modules/booking/controller/booking.controller.js
+import { BookingResponseDto } from "../dto/booking.response.dto.js";
 import { BookingService } from "../service/booking.service.js";
 
 export class BookingController {
@@ -74,6 +75,30 @@ export class BookingController {
     return res.status(200).json({
       success: true,
       data: result,
+    });
+  };
+
+  /**
+   * Fetches the booking history for the currently logged-in user.
+   */
+  getMyBookings = async (req, res, next) => {
+    // 1. Grab the secure user ID injected by the `protect` middleware
+    const userId = req.user.id;
+
+    // 2. Fetch their bookings from the service
+    const bookings = await this.bookingService.getMyBookings(userId);
+
+    // 3. Map the raw database array into your clean Response DTOs
+    const formattedBookings = bookings.map(
+      (booking) => new BookingResponseDto(booking),
+    );
+
+    // 4. Send the clean data back to the frontend
+    return res.status(200).json({
+      success: true,
+      message: "User booking history retrieved successfully.",
+      count: formattedBookings.length,
+      data: formattedBookings,
     });
   };
 }
