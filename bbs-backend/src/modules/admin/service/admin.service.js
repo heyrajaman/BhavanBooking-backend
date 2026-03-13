@@ -121,4 +121,21 @@ export class AdminService {
 
     return booking;
   }
+
+  /**
+   * Fetches the complete, detailed view of a specific booking for the Admin Dashboard.
+   * Includes User and Facility data.
+   */
+  async getBookingDetails(bookingId) {
+    // 1. Fetch the data using our new repository method
+    const booking = await this.bookingRepository.findByIdWithDetails(bookingId);
+
+    // 2. Protect against bad IDs
+    if (!booking) {
+      throw new AppError("Booking not found or has been deleted.", 404);
+    }
+
+    // 3. Return the rich data object
+    return booking;
+  }
 }

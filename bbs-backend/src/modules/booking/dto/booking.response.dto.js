@@ -27,3 +27,46 @@ export class BookingResponseDto {
     }
   }
 }
+
+export class BookingDetailResponseDto {
+  constructor(booking) {
+    this.id = booking.id;
+    this.status = booking.status;
+    this.eventType = booking.eventType;
+    this.guestCount = booking.guestCount;
+
+    this.schedule = {
+      startTime: booking.startTime,
+      endTime: booking.endTime,
+    };
+
+    this.financials = {
+      calculatedAmount: booking.calculatedAmount,
+      securityDeposit: booking.securityDeposit,
+      advanceRequested: booking.advanceAmountRequested,
+      paymentStatus: booking.paymentStatus,
+    };
+
+    // Safely mapping the joined User data
+    this.user = booking.user
+      ? {
+          id: booking.user.id,
+          fullName: booking.user.fullName, // Using your exact model property!
+          email: booking.user.email,
+          phone: booking.user.mobile,
+          role: booking.user.role,
+        }
+      : null;
+
+    // Safely mapping the joined Facility data
+    this.facility = booking.facility
+      ? {
+          id: booking.facility.id,
+          name: booking.facility.name,
+          facilityType: booking.facility.facilityType,
+          capacity: booking.facility.capacity,
+          pricingType: booking.facility.pricingType,
+        }
+      : null;
+  }
+}

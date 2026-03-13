@@ -1,6 +1,8 @@
 // src/modules/booking/repository/booking.repository.js
 import { Op } from "sequelize";
 import Booking from "../model/booking.model.js";
+import User from "../../user/model/user.model.js";
+import Facility from "../../facility/model/facility.model.js";
 
 export class BookingRepository {
   // Add this new method right here!
@@ -65,6 +67,27 @@ export class BookingRepository {
     return await Booking.findAll({
       where: filters,
       order: [["createdAt", "DESC"]], // Show newest bookings at the top
+    });
+  }
+
+  /**
+   * Fetches a booking by ID and includes the associated User and Facility details.
+   * Perfect for the Dashboard Detail View.
+   */
+  async findByIdWithDetails(id) {
+    return await Booking.findByPk(id, {
+      include: [
+        {
+          model: User,
+          as: "user",
+          attributes: ["id", "fullName", "email", "mobile", "role"], // Ensures we don't accidentally send passwords to the frontend!
+        },
+        {
+          model: Facility,
+          as: "facility",
+          // You can restrict attributes here too if needed, but for admins, seeing all facility rules is helpful
+        },
+      ],
     });
   }
 }

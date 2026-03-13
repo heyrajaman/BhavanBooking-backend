@@ -33,6 +33,17 @@ User.initModel(sequelize);
 Booking.initModel(sequelize);
 Facility.initModel(sequelize);
 
+const models = {
+  User,
+  Booking,
+  Facility,
+};
+
+// 3. Execute the associations (Foreign Keys & Relationships)
+if (User.associate) User.associate(models);
+if (Booking.associate) Booking.associate(models);
+if (Facility.associate) Facility.associate(models);
+
 export const connectDatabase = async () => {
   try {
     await sequelize.authenticate();
