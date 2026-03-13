@@ -1,3 +1,4 @@
+// src/modules/payment/controller/payment.controller.js
 import { PaymentService } from "../service/payment.service.js";
 
 export class PaymentController {
@@ -5,38 +6,82 @@ export class PaymentController {
     this.paymentService = new PaymentService();
   }
 
-  createPaymentLink = async (req, res, next) => {
-    try {
-      // Assuming a DTO has already validated req.body
-      const linkUrl = await this.paymentService.generatePaymentLink(req.body);
+  /**
+   * Handles the request to create a Razorpay order for the advance payment
+   */
+  createAdvanceOrder = async (req, res, next) => {
+    // req.user is set by your protect middleware
+    const userId = req.user.id;
+    const { bookingId } = req.body;
 
-      return res.status(200).json({
-        success: true,
-        message: "Payment link generated successfully",
-        paymentUrl: linkUrl,
-      });
-    } catch (error) {
-      next(error);
-    }
+    const orderDetails = await this.paymentService.createAdvancePaymentOrder(
+      userId,
+      bookingId,
+    );
+
+    return res.status(200).json({
+      success: true,
+      message: "Razorpay advance order created successfully",
+      data: orderDetails,
+    });
   };
 
-  handleWebhook = async (req, res, next) => {
-    try {
-      const signature = req.headers["x-razorpay-signature"];
+  /**
+   * Handles the request from the frontend to verify the payment signature
+   */
+  verifyAdvance = async (req, res, next) => {
+    const userId = req.user.id;
+    const paymentData = req.body;
 
-      // Note: For webhooks to work properly in Express, you often need to use
-      // express.raw({ type: 'application/json' }) middleware for this specific route
-      // so req.body is a raw Buffer/String, not a parsed JS object.
-      const rawBody = req.body.toString();
+    const confirmedBooking = await this.paymentService.verifyAdvancePayment(
+      userId,
+      paymentData,
+    );
 
-      await this.paymentService.verifyWebhook(rawBody, signature);
+    return res.status(200).json({
+      success: true,
+      message:
+        "Advance payment verified successfully. Booking is now CONFIRMED!",
+      data: confirmedBooking,
+    });
+  };
 
-      // Razorpay expects a 200 OK back very quickly, otherwise it will retry sending the webhook
-      return res.status(200).send("Webhook verified successfully");
-    } catch (error) {
-      console.error("[WEBHOOK ERROR]:", error.message);
-      // Return 400 so Razorpay knows something was wrong with the request
-      return res.status(400).send("Webhook verification failed");
-    }
+  /**
+   * Handles the request to create a Razorpay order for the remaining balance
+   */
+  createRemainingOrder = async (req, res, next) => {
+    const userId = req.user.id;
+    const { bookingId } = req.body;
+
+    const orderDetails = await this.paymentService.createRemainingPaymentOrder(
+      userId,
+      bookingId,
+    );
+
+    return res.status(200).json({
+      success: true,
+      message: "Razorpay order for remaining balance created successfully",
+      data: orderDetails,
+    });
+  };
+
+  /**
+   * Handles the request to verify the remaining payment signature
+   */
+  verifyRemaining = async (req, res, next) => {
+    const userId = req.user.id;
+    const paymentData = req.body;
+
+    const completedBooking = await this.paymentService.verifyRemainingPayment(
+      userId,
+      paymentData,
+    );
+
+    return res.status(200).json({
+      success: true,
+      message:
+        "Remaining payment verified successfully. Payment is now COMPLETED!",
+      data: completedBooking,
+    });
   };
 }

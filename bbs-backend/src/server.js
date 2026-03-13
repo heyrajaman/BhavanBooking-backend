@@ -1,3 +1,4 @@
+import "./config/env.js";
 import app from "./app.js"; // The Express app we built in Step 13
 import { connectDatabase } from "./config/database.js";
 import { initBookingCronJobs } from "./modules/booking/workers/booking.cron.js"; // From Step 9

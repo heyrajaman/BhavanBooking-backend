@@ -1,89 +1,213 @@
+// src/modules/payment/service/payment.service.js
 import crypto from "crypto";
 import { razorpayInstance } from "../../../config/razorpay.js";
-// In a real app, you would import repositories here to update database statuses
-// import { PaymentRepository } from '../repository/payment.repository.js';
-// import { BookingRepository } from '../../booking/repository/booking.repository.js';
+import { BookingRepository } from "../../booking/repository/booking.repository.js";
+import { AppError } from "../../../utils/AppError.js";
 
 export class PaymentService {
-  /**
-   * Generates a standard Razorpay Payment Link.
-   * @param {Object} paymentDetails - amount, reference id, customer info
-   */
-  async generatePaymentLink(paymentDetails) {
-    const { amount, referenceId, customerName, customerEmail, customerMobile } =
-      paymentDetails;
-
-    // Razorpay expects amount in the smallest currency sub-unit (paise for INR).
-    // So ₹100 becomes 10000.
-    const amountInPaise = amount * 100;
-
-    const paymentLinkOptions = {
-      amount: amountInPaise,
-      currency: "INR",
-      accept_partial: false,
-      reference_id: referenceId, // We map this to our internal Invoice ID or Booking ID
-      description: "Bhavan Booking System Payment",
-      customer: {
-        name: customerName,
-        email: customerEmail,
-        contact: customerMobile,
-      },
-      notify: {
-        sms: true,
-        email: true,
-      },
-      reminder_enable: true,
-      // The URL to redirect the user to after they pay
-      callback_url: `${process.env.FRONTEND_URL}/payment-success`,
-      callback_method: "get",
-    };
-
-    const paymentLink =
-      await razorpayInstance.paymentLink.create(paymentLinkOptions);
-
-    // Here, you would use this.paymentRepository to log the 'PENDING' payment in the DB
-
-    return paymentLink.short_url;
+  constructor() {
+    this.bookingRepository = new BookingRepository();
   }
 
   /**
-   * Verifies the cryptographic signature sent by Razorpay's webhook.
-   * @param {string} rawBody - The raw JSON string sent by Razorpay
-   * @param {string} signature - The 'x-razorpay-signature' header
+   * 1. Creates a Razorpay order for the initial Advance Payment
    */
-  async verifyWebhook(rawBody, signature) {
-    const webhookSecret = process.env.RAZORPAY_WEBHOOK_SECRET;
+  async createAdvancePaymentOrder(userId, bookingId) {
+    const booking = await this.bookingRepository.findById(bookingId);
+    if (!booking) throw new AppError("Booking not found", 404);
 
-    // We generate our own signature using the raw payload and our secret
-    const expectedSignature = crypto
-      .createHmac("sha256", webhookSecret)
-      .update(rawBody)
+    if (booking.userId !== userId) {
+      throw new AppError(
+        "You are not authorized to pay for this booking.",
+        403,
+      );
+    }
+
+    if (booking.status !== "PENDING_ADVANCE_PAYMENT") {
+      throw new AppError(
+        `Cannot initiate advance payment. Booking status is ${booking.status}.`,
+        400,
+      );
+    }
+
+    // Create the Razorpay Order for the Advance Amount
+    const amountInPaise = Math.round(
+      Number(booking.advanceAmountRequested) * 100,
+    );
+
+    const options = {
+      amount: amountInPaise,
+      currency: "INR",
+      receipt: `adv_${booking.id.replace(/-/g, "")}`.substring(0, 40),
+    };
+
+    const order = await razorpayInstance.orders.create(options);
+
+    // 👇 ADD THIS BLOCK FOR POSTMAN TESTING 👇
+    const mockPaymentId = "pay_test_" + Math.floor(Math.random() * 1000000);
+    const mockSignature = crypto
+      .createHmac("sha256", process.env.RAZORPAY_KEY_SECRET)
+      .update(order.id + "|" + mockPaymentId)
       .digest("hex");
 
-    if (expectedSignature !== signature) {
-      throw new Error(
-        "Invalid payment signature. Potential tampering detected.",
+    console.log("\n=============================================");
+    console.log("🧪 POSTMAN TESTING DATA (COPY THESE):");
+    console.log(`"razorpay_order_id": "${order.id}"`);
+    console.log(`"razorpay_payment_id": "${mockPaymentId}"`);
+    console.log(`"razorpay_signature": "${mockSignature}"`);
+    console.log("=============================================\n");
+    // 👆 END TESTING BLOCK 👆
+
+    return {
+      orderId: order.id,
+      amount: order.amount,
+      currency: order.currency,
+      bookingId: booking.id,
+      paymentType: "ADVANCE",
+    };
+  }
+
+  /**
+   * 2. Verifies the Advance Payment and Confirms the Booking
+   */
+  async verifyAdvancePayment(userId, paymentData) {
+    const {
+      razorpay_order_id,
+      razorpay_payment_id,
+      razorpay_signature,
+      bookingId,
+    } = paymentData;
+
+    // Verify the Razorpay Signature
+    const body = razorpay_order_id + "|" + razorpay_payment_id;
+    const expectedSignature = crypto
+      .createHmac("sha256", process.env.RAZORPAY_KEY_SECRET)
+      .update(body.toString())
+      .digest("hex");
+
+    if (expectedSignature !== razorpay_signature) {
+      throw new AppError(
+        "Invalid payment signature. Payment verification failed.",
+        400,
       );
     }
 
-    // Parse the body now that we know it's safe
-    const payload = JSON.parse(rawBody);
-
-    if (payload.event === "payment_link.paid") {
-      const paymentEntity = payload.payload.payment_link.entity;
-      const referenceId = paymentEntity.reference_id;
-      const amountPaid = paymentEntity.amount_paid / 100;
-
-      console.log(
-        `[PaymentService] Verified payment of ₹${amountPaid} for Reference: ${referenceId}`,
-      );
-
-      // Here you would:
-      // 1. Update Payment status to 'SUCCESS' in DB
-      // 2. If it's the 20% advance, leave Booking status as 'HOLD' but mark advance as paid.
-      // 3. If it's the full advance + security deposit, update Booking status to 'CONFIRMED'.
+    const booking = await this.bookingRepository.findById(bookingId);
+    if (!booking || booking.userId !== userId) {
+      throw new AppError("Booking not found or unauthorized.", 404);
     }
 
-    return true;
+    // Update the Booking Status to CONFIRMED and PARTIAL payment
+    booking.paymentStatus = "PARTIAL";
+    booking.status = "CONFIRMED";
+    await booking.save();
+
+    return booking;
+  }
+
+  /**
+   * 3. Creates a Razorpay order for the Remaining Balance
+   */
+  async createRemainingPaymentOrder(userId, bookingId) {
+    const booking = await this.bookingRepository.findById(bookingId);
+    if (!booking) throw new AppError("Booking not found", 404);
+
+    if (booking.userId !== userId) {
+      throw new AppError(
+        "You are not authorized to pay for this booking.",
+        403,
+      );
+    }
+
+    // State Machine Check: Must be CONFIRMED but only PARTIAL payment made
+    if (booking.status !== "CONFIRMED" || booking.paymentStatus !== "PARTIAL") {
+      throw new AppError(
+        "This booking is not eligible for a remaining balance payment.",
+        400,
+      );
+    }
+
+    // Calculate the Remaining Amount
+    const totalCost =
+      Number(booking.calculatedAmount) + Number(booking.securityDeposit);
+    const advancePaid = Number(booking.advanceAmountRequested);
+    const remainingAmount = totalCost - advancePaid;
+
+    if (remainingAmount <= 0) {
+      throw new AppError("There is no remaining balance left to pay.", 400);
+    }
+
+    // Create the Razorpay Order for the Remaining Amount
+    const amountInPaise = Math.round(remainingAmount * 100);
+
+    const options = {
+      amount: amountInPaise,
+      currency: "INR",
+      receipt: `rem_${booking.id.replace(/-/g, "")}`.substring(0, 40),
+    };
+
+    const order = await razorpayInstance.orders.create(options);
+
+    // 👇 ADD THIS BLOCK FOR POSTMAN TESTING 👇
+    const mockPaymentId = "pay_test_" + Math.floor(Math.random() * 1000000);
+    const mockSignature = crypto
+      .createHmac("sha256", process.env.RAZORPAY_KEY_SECRET)
+      .update(order.id + "|" + mockPaymentId)
+      .digest("hex");
+
+    console.log("\n=============================================");
+    console.log("🧪 POSTMAN TESTING DATA (COPY THESE):");
+    console.log(`"razorpay_order_id": "${order.id}"`);
+    console.log(`"razorpay_payment_id": "${mockPaymentId}"`);
+    console.log(`"razorpay_signature": "${mockSignature}"`);
+    console.log("=============================================\n");
+    // 👆 END TESTING BLOCK 👆
+
+    return {
+      orderId: order.id,
+      amount: order.amount,
+      currency: order.currency,
+      bookingId: booking.id,
+      paymentType: "REMAINING",
+      remainingAmountToPay: remainingAmount,
+    };
+  }
+
+  /**
+   * 4. Verifies the Remaining Payment and Marks Payment as COMPLETED
+   */
+  async verifyRemainingPayment(userId, paymentData) {
+    const {
+      razorpay_order_id,
+      razorpay_payment_id,
+      razorpay_signature,
+      bookingId,
+    } = paymentData;
+
+    // Verify the Razorpay Signature
+    const body = razorpay_order_id + "|" + razorpay_payment_id;
+    const expectedSignature = crypto
+      .createHmac("sha256", process.env.RAZORPAY_KEY_SECRET)
+      .update(body.toString())
+      .digest("hex");
+
+    if (expectedSignature !== razorpay_signature) {
+      throw new AppError(
+        "Invalid payment signature. Payment verification failed.",
+        400,
+      );
+    }
+
+    const booking = await this.bookingRepository.findById(bookingId);
+    if (!booking || booking.userId !== userId) {
+      throw new AppError("Booking not found or unauthorized.", 404);
+    }
+
+    // Update the Payment Status to COMPLETED!
+    booking.paymentStatus = "COMPLETED";
+    // We leave status as "CONFIRMED" because the booking itself was already confirmed
+    await booking.save();
+
+    return booking;
   }
 }
