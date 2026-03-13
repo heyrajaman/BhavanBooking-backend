@@ -58,4 +58,53 @@ export class BookingController {
       data: updatedBooking,
     });
   };
+
+  /**
+   * Handles the request to fetch unavailable dates for a facility's calendar.
+   */
+  getUnavailableDates = async (req, res, next) => {
+    // 1. Grab the facility ID from the URL parameters
+    const { facilityId } = req.params;
+
+    // 2. Ask the service for the blocked dates
+    const blockedDates =
+      await this.bookingService.getUnavailableDates(facilityId);
+
+    // 3. Send the data back to the frontend calendar
+    return res.status(200).json({
+      success: true,
+      message: "Unavailable dates retrieved successfully.",
+      data: blockedDates,
+    });
+  };
+
+  /**
+   * Handles the request to check if dates are available and returns a price quote.
+   */
+  checkAvailability = async (req, res, next) => {
+    // 1. Grab the details sent by the frontend calendar
+    const { facilityId, startTime, endTime } = req.body;
+
+    // 2. Make sure they actually sent all the required fields
+    if (!facilityId || !startTime || !endTime) {
+      return res.status(400).json({
+        success: false,
+        message:
+          "facilityId, startTime, and endTime are required to check availability.",
+      });
+    }
+
+    // 3. Ask the service to check the dates and calculate the price
+    const result = await this.bookingService.checkAvailabilityAndPrice(
+      facilityId,
+      startTime,
+      endTime,
+    );
+
+    // 4. Send the result back to the frontend
+    return res.status(200).json({
+      success: true,
+      data: result,
+    });
+  };
 }

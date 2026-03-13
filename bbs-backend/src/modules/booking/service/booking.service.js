@@ -111,6 +111,62 @@ export class BookingService {
   }
 
   /**
+   * Gets unavailable dates for a facility to block out frontend calendar days.
+   */
+  async getUnavailableDates(facilityId) {
+    // 1. Fetch the active bookings from the repository
+    const activeBookings =
+      await this.bookingRepository.findActiveBookingsForFacility(facilityId);
+
+    // 2. Map the database results into a clean array of start/end objects for the frontend
+    return activeBookings.map((booking) => ({
+      start: booking.startTime,
+      end: booking.endTime,
+      // Optional: Passing status lets the frontend show "Pending" vs "Confirmed" in different colors if they want
+      status: booking.status,
+    }));
+  }
+
+  /**
+   * Checks if requested dates are available and returns a price quote.
+   */
+  async checkAvailabilityAndPrice(facilityId, startTime, endTime) {
+    // 1. Fetch the facility to ensure it exists and get its pricing rules
+    const facility = await this.facilityRepository.findById(facilityId);
+    if (!facility) {
+      throw new AppError("Facility not found.", 404);
+    }
+
+    // 2. Check if the dates are already booked
+    const isOverlap = await this.bookingRepository.checkFacilityOverlap(
+      facilityId,
+      startTime,
+      endTime,
+    );
+
+    if (isOverlap) {
+      return {
+        isAvailable: false,
+        message: "These dates are currently unavailable for this facility.",
+      };
+    }
+
+    // 3. If available, calculate the exact price they will pay using your pricing engine
+    const calculatedAmount = this._calculatePrice(facility, startTime, endTime);
+
+    return {
+      isAvailable: true,
+      message: "Dates are available!",
+      pricing: {
+        baseCalculatedAmount: calculatedAmount,
+        securityDepositRequired: facility.securityDeposit,
+        estimatedTotal:
+          Number(calculatedAmount) + Number(facility.securityDeposit),
+      },
+    };
+  }
+
+  /**
    * Internal calculation engine to parse the JSON pricing rules
    */
   _calculatePrice(facility, startTime, endTime) {
