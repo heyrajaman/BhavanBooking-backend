@@ -18,11 +18,14 @@ export class BookingResponseDto {
       paymentStatus: bookingModel.paymentStatus,
     };
 
-    if (facilityModel) {
+    const facility = facilityModel || bookingModel.facility;
+
+    if (facility) {
       this.facility = {
-        id: facilityModel.id,
-        name: facilityModel.name,
-        facilityType: facilityModel.facilityType,
+        id: facility.id,
+        name: facility.name,
+        description: facility.description,
+        facilityType: facility.facilityType,
       };
     }
   }
@@ -63,6 +66,7 @@ export class BookingDetailResponseDto {
       ? {
           id: booking.facility.id,
           name: booking.facility.name,
+          description: booking.facility.description,
           facilityType: booking.facility.facilityType,
           capacity: booking.facility.capacity,
           pricingType: booking.facility.pricingType,

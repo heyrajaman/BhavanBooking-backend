@@ -15,17 +15,19 @@ export class BookingController {
     const bookingData = req.body;
 
     // 3. Pass to the service for pricing calculation and database insertion
-    const newBooking = await this.bookingService.createBooking(
+    const { newBooking, facility } = await this.bookingService.createBooking(
       userId,
       bookingData,
     );
+
+    const formattedBooking = new BookingResponseDto(newBooking, facility);
 
     // 4. Return success response
     return res.status(201).json({
       success: true,
       message:
         "Booking request submitted successfully. It is now pending Clerk review.",
-      data: newBooking,
+      data: formattedBooking,
     });
   };
 

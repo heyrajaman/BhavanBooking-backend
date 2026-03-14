@@ -64,6 +64,7 @@ export class PaymentService {
       currency: order.currency,
       bookingId: booking.id,
       paymentType: "ADVANCE",
+      keyId: process.env.RAZORPAY_KEY_ID,
     };
   }
 
@@ -170,6 +171,7 @@ export class PaymentService {
       bookingId: booking.id,
       paymentType: "REMAINING",
       remainingAmountToPay: remainingAmount,
+      keyId: process.env.RAZORPAY_KEY_ID,
     };
   }
 

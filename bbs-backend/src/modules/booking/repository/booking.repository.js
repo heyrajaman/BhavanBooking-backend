@@ -66,6 +66,13 @@ export class BookingRepository {
   async findAll(filters = {}) {
     return await Booking.findAll({
       where: filters,
+      include: [
+        {
+          model: Facility,
+          as: "facility", // This matches the alias in your Booking.associate method
+          attributes: ["id", "name", "description", "facilityType"], // Added description here
+        },
+      ],
       order: [["createdAt", "DESC"]], // Show newest bookings at the top
     });
   }
