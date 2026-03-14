@@ -72,6 +72,11 @@ export class BookingRepository {
           as: "facility", // This matches the alias in your Booking.associate method
           attributes: ["id", "name", "description", "facilityType"], // Added description here
         },
+        {
+          model: User,
+          as: "user",
+          attributes: ["id", "fullName", "email", "mobile"], // Restrict fields to what the dashboard needs
+        },
       ],
       order: [["createdAt", "DESC"]], // Show newest bookings at the top
     });

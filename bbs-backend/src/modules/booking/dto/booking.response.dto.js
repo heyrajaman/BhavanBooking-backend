@@ -18,6 +18,15 @@ export class BookingResponseDto {
       paymentStatus: bookingModel.paymentStatus,
     };
 
+    if (bookingModel.user) {
+      this.user = {
+        id: bookingModel.user.id,
+        fullName: bookingModel.user.fullName,
+        email: bookingModel.user.email,
+        phone: bookingModel.user.mobile,
+      };
+    }
+
     const facility = facilityModel || bookingModel.facility;
 
     if (facility) {
