@@ -1,4 +1,7 @@
-import { BookingDetailResponseDto } from "../../booking/dto/booking.response.dto.js";
+import {
+  BookingDetailResponseDto,
+  BookingResponseDto,
+} from "../../booking/dto/booking.response.dto.js";
 import { AdminService } from "../service/admin.service.js";
 
 export class AdminController {
@@ -57,13 +60,15 @@ export class AdminController {
 
       const bookings = await this.adminService.getAllBookings(queryFilters);
 
-      // In a strict DTO architecture, you would map these raw 'bookings' to a ResponseDTO here
-      // before sending them to the client to hide database-specific fields.
+      const formattedBookings = bookings.map(
+        (booking) => new BookingResponseDto(booking),
+      );
+
       return res.status(200).json({
         success: true,
         message: "Bookings fetched successfully",
         results: bookings.length,
-        data: bookings,
+        data: formattedBookings,
       });
     } catch (error) {
       next(error);

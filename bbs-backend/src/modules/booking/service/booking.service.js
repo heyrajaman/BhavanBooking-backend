@@ -21,6 +21,19 @@ export class BookingService {
       );
     }
 
+    const isOverlap = await this.bookingRepository.checkFacilityOverlap(
+      facility.id,
+      bookingData.startTime,
+      bookingData.endTime,
+    );
+
+    if (isOverlap) {
+      throw new AppError(
+        "This facility is already booked or pending review for the selected dates.",
+        409,
+      );
+    }
+
     // 2. Calculate the total cost dynamically based on the facility's pricing structure
     const calculatedAmount = this._calculatePrice(
       facility,
@@ -41,7 +54,7 @@ export class BookingService {
       securityDeposit: facility.securityDeposit,
     });
 
-    return newBooking;
+    return { newBooking, facility };
   }
 
   /**
