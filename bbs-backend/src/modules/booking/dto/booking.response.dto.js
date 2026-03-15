@@ -1,4 +1,5 @@
 // src/modules/booking/dto/booking.response.dto.js
+
 export class BookingResponseDto {
   constructor(bookingModel, facilityModel = null) {
     this.id = bookingModel.id;
@@ -27,8 +28,12 @@ export class BookingResponseDto {
       };
     }
 
+    // 1. ADD CUSTOM DETAILS
+    this.customDetails = bookingModel.customDetails || null;
+
     const facility = facilityModel || bookingModel.facility;
 
+    // 2. DYNAMIC FACILITY MAPPING
     if (facility) {
       this.facility = {
         id: facility.id,
@@ -36,6 +41,19 @@ export class BookingResponseDto {
         description: facility.description,
         facilityType: facility.facilityType,
       };
+    } else if (this.customDetails && this.customDetails.length > 0) {
+      // Create a virtual facility object for custom bookings so the frontend doesn't break
+      const itemNames = this.customDetails
+        .map((item) => `${item.name} (x${item.quantity})`)
+        .join(", ");
+      this.facility = {
+        id: null,
+        name: `Custom Selection: ${itemNames}`,
+        description: "Customized booking arrangement.",
+        facilityType: "CUSTOM",
+      };
+    } else {
+      this.facility = null;
     }
   }
 }
@@ -59,27 +77,45 @@ export class BookingDetailResponseDto {
       paymentStatus: booking.paymentStatus,
     };
 
+    // 1. ADD CUSTOM DETAILS
+    this.customDetails = booking.customDetails || null;
+
     // Safely mapping the joined User data
     this.user = booking.user
       ? {
           id: booking.user.id,
-          fullName: booking.user.fullName, // Using your exact model property!
+          fullName: booking.user.fullName,
           email: booking.user.email,
           phone: booking.user.mobile,
           role: booking.user.role,
         }
       : null;
 
-    // Safely mapping the joined Facility data
-    this.facility = booking.facility
-      ? {
-          id: booking.facility.id,
-          name: booking.facility.name,
-          description: booking.facility.description,
-          facilityType: booking.facility.facilityType,
-          capacity: booking.facility.capacity,
-          pricingType: booking.facility.pricingType,
-        }
-      : null;
+    // 2. DYNAMIC FACILITY MAPPING FOR DETAIL VIEW
+    if (booking.facility) {
+      this.facility = {
+        id: booking.facility.id,
+        name: booking.facility.name,
+        description: booking.facility.description,
+        facilityType: booking.facility.facilityType,
+        capacity: booking.facility.capacity,
+        pricingType: booking.facility.pricingType,
+      };
+    } else if (this.customDetails && this.customDetails.length > 0) {
+      // Create a virtual facility object for custom bookings
+      const itemNames = this.customDetails
+        .map((item) => `${item.name} (x${item.quantity})`)
+        .join(", ");
+      this.facility = {
+        id: null,
+        name: `Custom Selection: ${itemNames}`,
+        description: "Customized booking of individual facilities.",
+        facilityType: "CUSTOM",
+        capacity: null,
+        pricingType: "MIXED",
+      };
+    } else {
+      this.facility = null;
+    }
   }
 }

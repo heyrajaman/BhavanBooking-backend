@@ -3,13 +3,156 @@ import Facility from "../modules/facility/model/facility.model.js";
 import sequelize from "../config/database.js";
 
 const facilityData = [
+  // ==========================================
+  // 1. ATOMIC / INDIVIDUAL FACILITIES (Checkboxes)
+  // ==========================================
+  {
+    name: "Big Hall",
+    description: "Spacious main hall for large gatherings.",
+    facilityType: "HALL",
+    pricingType: "FIXED",
+    baseRate: 25000.0,
+    pricingDetails: { is_atomic: true },
+    securityDeposit: 10000.0,
+  },
+  {
+    name: "Dining Hall",
+    description: "Dedicated dining area for food arrangements.",
+    facilityType: "HALL",
+    pricingType: "FIXED",
+    baseRate: 15000.0,
+    pricingDetails: { is_atomic: true },
+    securityDeposit: 5000.0,
+  },
+  {
+    name: "Mini Hall (Capacity 75)",
+    description: "Compact hall ideal for small functions up to 75 people.",
+    facilityType: "HALL",
+    pricingType: "FIXED",
+    baseRate: 10000.0,
+    pricingDetails: { is_atomic: true },
+    securityDeposit: 5000.0,
+  },
+  {
+    name: "Stage",
+    description: "Elevated stage setup for performances or main events.",
+    facilityType: "ITEM",
+    pricingType: "FIXED",
+    baseRate: 5000.0,
+    pricingDetails: { is_atomic: true },
+    securityDeposit: 0.0,
+  },
+  {
+    name: "Kitchen",
+    description: "Commercial kitchen access for catering preparations.",
+    facilityType: "ITEM",
+    pricingType: "FIXED",
+    baseRate: 8000.0,
+    pricingDetails: { is_atomic: true },
+    securityDeposit: 5000.0,
+  },
+  {
+    name: "Lawn",
+    description: "Open outdoor lawn space.",
+    facilityType: "LAWN",
+    pricingType: "FIXED",
+    baseRate: 15000.0,
+    pricingDetails: { is_atomic: true },
+    securityDeposit: 5000.0,
+  },
+  {
+    name: "Parking",
+    description: "Dedicated parking space access.",
+    facilityType: "ITEM",
+    pricingType: "FIXED",
+    baseRate: 3000.0,
+    pricingDetails: { is_atomic: true },
+    securityDeposit: 0.0,
+  },
+  {
+    name: "Standard Room",
+    description: "Individual room booking. Select quantity needed.",
+    facilityType: "ROOM",
+    pricingType: "PER_ITEM",
+    baseRate: 1500.0,
+    pricingDetails: { is_atomic: true },
+    securityDeposit: 0.0,
+  },
+  {
+    name: "Meeting Hall",
+    description:
+      "Monday to Saturday (6:00 PM – 11:00 PM). Extra hour charges apply.",
+    facilityType: "HALL",
+    pricingType: "HOURLY",
+    baseRate: 12000.0,
+    pricingDetails: { base_hours: 5, extra_hour_rate: 3000, is_atomic: true },
+    securityDeposit: 25000.0,
+  },
+  {
+    name: "Day Room (4 Bedded)",
+    description: "10:00 AM – Next Day 8:00 AM. 4 Bedded room.",
+    facilityType: "ROOM",
+    pricingType: "FIXED",
+    baseRate: 2500.0,
+    pricingDetails: { is_atomic: true },
+    securityDeposit: 0.0,
+  },
+  {
+    name: "Day Room (Double Bed)",
+    description: "10:00 AM – Next Day 8:00 AM. Double Bed room.",
+    facilityType: "ROOM",
+    pricingType: "FIXED",
+    baseRate: 1800.0,
+    pricingDetails: { is_atomic: true },
+    securityDeposit: 0.0,
+  },
+  {
+    name: "Extra Mattress",
+    description: "Extra mattress per piece",
+    facilityType: "ITEM",
+    pricingType: "PER_ITEM",
+    baseRate: 600.0,
+    pricingDetails: { is_atomic: true },
+    securityDeposit: 0.0,
+  },
+  {
+    name: "Dormitory (15 persons)",
+    description: "Single dormitory accommodating up to 15 persons.",
+    facilityType: "ROOM",
+    pricingType: "FIXED",
+    baseRate: 8000.0,
+    pricingDetails: { is_atomic: true },
+    securityDeposit: 0.0,
+  },
+
+  // ==========================================
+  // 2. PACKAGES (Mapped to Atomic Facilities to prevent double-booking)
+  // ==========================================
   {
     name: "Complete Maharashtra Bhavan",
     description: "Hall, Dining Hall, Stage, Kitchen, Lawn, 12-rooms",
     facilityType: "COMPLEX",
     pricingType: "TIERED",
     baseRate: 130000.0,
-    pricingDetails: { "1_day": 130000, "2_days": 230000, "3_days": 310000 },
+    pricingDetails: {
+      "1_day": 130000,
+      "2_days": 230000,
+      "3_days": 310000,
+      included_facilities: [
+        "Big Hall",
+        "Dining Hall",
+        "Mini Hall (Capacity 75)",
+        "Stage",
+        "Kitchen",
+        "Lawn",
+        "Parking",
+        "Standard Room",
+        "Meeting Hall",
+        "Day Room (4 Bedded)",
+        "Day Room (Double Bed)",
+        "Dormitory (15 persons)",
+      ],
+    },
     securityDeposit: 25000.0,
   },
   {
@@ -18,7 +161,16 @@ const facilityData = [
     facilityType: "PACKAGE",
     pricingType: "FIXED",
     baseRate: 60000.0,
-    pricingDetails: null,
+    pricingDetails: {
+      included_facilities: [
+        "Big Hall",
+        "Stage",
+        "Standard Room",
+        "Dining Hall",
+        "Kitchen",
+        "Parking",
+      ],
+    },
     securityDeposit: 25000.0,
   },
   {
@@ -27,7 +179,10 @@ const facilityData = [
     facilityType: "PACKAGE",
     pricingType: "SLOT",
     baseRate: 35000.0,
-    pricingDetails: { duration_hours: 6 },
+    pricingDetails: {
+      duration_hours: 6,
+      included_facilities: ["Big Hall", "Stage", "Standard Room"],
+    },
     securityDeposit: 25000.0,
   },
   {
@@ -37,7 +192,16 @@ const facilityData = [
     facilityType: "PACKAGE",
     pricingType: "SLOT",
     baseRate: 25000.0,
-    pricingDetails: { half_day: 25000, full_day: 40000 },
+    pricingDetails: {
+      half_day: 25000,
+      full_day: 40000,
+      included_facilities: [
+        "Dining Hall",
+        "Mini Hall (Capacity 75)",
+        "Kitchen",
+        "Parking",
+      ],
+    },
     securityDeposit: 25000.0,
   },
   {
@@ -46,54 +210,10 @@ const facilityData = [
     facilityType: "PACKAGE",
     pricingType: "FIXED",
     baseRate: 40000.0,
-    pricingDetails: null,
+    pricingDetails: {
+      included_facilities: ["Lawn", "Kitchen", "Parking"],
+    },
     securityDeposit: 25000.0,
-  },
-  {
-    name: "Meeting Hall",
-    description:
-      "Monday to Saturday (6:00 PM – 11:00 PM). Extra hour charges apply.",
-    facilityType: "HALL",
-    pricingType: "HOURLY",
-    baseRate: 12000.0,
-    pricingDetails: { base_hours: 5, extra_hour_rate: 3000 },
-    securityDeposit: 25000.0,
-  },
-  {
-    name: "Day Room (4 Bedded)",
-    description: "10:00 AM – Next Day 8:00 AM. 4 Bedded room.",
-    facilityType: "ROOM",
-    pricingType: "FIXED",
-    baseRate: 2500.0,
-    pricingDetails: null,
-    securityDeposit: 0.0,
-  },
-  {
-    name: "Day Room (Double Bed)",
-    description: "10:00 AM – Next Day 8:00 AM. Double Bed room.",
-    facilityType: "ROOM",
-    pricingType: "FIXED",
-    baseRate: 1800.0,
-    pricingDetails: null,
-    securityDeposit: 0.0,
-  },
-  {
-    name: "Extra Mattress",
-    description: "Extra mattress per piece",
-    facilityType: "ITEM",
-    pricingType: "PER_ITEM",
-    baseRate: 600.0,
-    pricingDetails: null,
-    securityDeposit: 0.0,
-  },
-  {
-    name: "Dormitory (15 persons)",
-    description: "Single dormitory accommodating up to 15 persons.",
-    facilityType: "ROOM",
-    pricingType: "FIXED",
-    baseRate: 8000.0,
-    pricingDetails: null,
-    securityDeposit: 0.0,
   },
   {
     name: "2 Dormitories",
@@ -101,23 +221,22 @@ const facilityData = [
     facilityType: "PACKAGE",
     pricingType: "FIXED",
     baseRate: 18000.0,
-    pricingDetails: null,
+    pricingDetails: {
+      included_facilities: ["Dormitory (15 persons)"],
+    },
     securityDeposit: 0.0,
   },
 ];
 
 const seedFacilities = async () => {
   try {
-    // 1. Connect to the DB
     await sequelize.authenticate();
     await sequelize.sync({ alter: true });
     console.log("Database connected & synced for Facility seeding...");
 
-    // 2. Clear existing facilities so we get a fresh, updated list
     await Facility.destroy({ where: {} });
     console.log("Cleared old facilities...");
 
-    // 3. Bulk insert the updated data
     await Facility.bulkCreate(facilityData);
 
     console.log(

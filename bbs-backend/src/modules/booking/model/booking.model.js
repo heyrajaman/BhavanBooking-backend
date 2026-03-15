@@ -16,7 +16,11 @@ export default class Booking extends Model {
         },
         facilityId: {
           type: DataTypes.UUID,
-          allowNull: false,
+          allowNull: true,
+        },
+        customDetails: {
+          type: DataTypes.JSON,
+          allowNull: true,
         },
         startTime: {
           type: DataTypes.DATE,
