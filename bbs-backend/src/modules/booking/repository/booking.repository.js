@@ -14,31 +14,39 @@ export class BookingRepository {
     return await Booking.create(bookingData, { transaction });
   }
 
+  async findOverlappingBookings(startTime, endTime, excludeBookingId = null) {
+    const whereClause = {
+      status: {
+        [Op.notIn]: ["CANCELLED", "REJECTED"],
+      },
+      [Op.and]: [
+        { startTime: { [Op.lt]: endTime } },
+        { endTime: { [Op.gt]: startTime } },
+      ],
+    };
+
+    if (excludeBookingId) {
+      whereClause.id = { [Op.ne]: excludeBookingId };
+    }
+
+    return await Booking.findAll({
+      where: whereClause,
+      include: [{ model: Facility, as: "facility" }],
+    });
+  }
+
   async checkFacilityOverlap(
     facilityId,
     startTime,
     endTime,
     excludeBookingId = null,
   ) {
-    const whereClause = {
-      facilityId: facilityId,
-      status: {
-        [Op.notIn]: ["CANCELLED", "REJECTED"], // Ignore cancelled or rejected bookings
-      },
-      [Op.or]: [
-        { startTime: { [Op.between]: [startTime, endTime] } },
-        { endTime: { [Op.between]: [startTime, endTime] } },
-      ],
-    };
-
-    // If we pass an ID to exclude (like the booking we are currently verifying), ignore it!
-    if (excludeBookingId) {
-      whereClause.id = { [Op.ne]: excludeBookingId };
-    }
-
-    const overlappingBookings = await Booking.findAll({ where: whereClause });
-
-    return overlappingBookings.length > 0;
+    const overlaps = await this.findOverlappingBookings(
+      startTime,
+      endTime,
+      excludeBookingId,
+    );
+    return overlaps.some((booking) => booking.facilityId === facilityId);
   }
 
   /**
@@ -100,6 +108,17 @@ export class BookingRepository {
           // You can restrict attributes here too if needed, but for admins, seeing all facility rules is helpful
         },
       ],
+    });
+  }
+
+  // Add this inside BookingRepository class
+  async findAllUpcomingActiveBookings() {
+    return await Booking.findAll({
+      where: {
+        status: { [Op.notIn]: ["CANCELLED", "REJECTED"] },
+        endTime: { [Op.gte]: new Date() }, // Only future/current bookings
+      },
+      include: [{ model: Facility, as: "facility" }],
     });
   }
 }

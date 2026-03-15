@@ -10,170 +10,364 @@ export class BookingService {
   }
 
   async createBooking(userId, bookingData) {
-    // 1. Fetch the requested facility to access its specific pricing and deposit rules
-    const facility = await this.facilityRepository.findById(
-      bookingData.facilityId,
-    );
-    if (!facility) {
-      throw new AppError(
-        "The requested facility or package does not exist.",
-        404,
-      );
-    }
+    const { totalAmount, totalSecurityDeposit, mainFacilityId, customDetails } =
+      await this._processAndValidateBookingItems(bookingData);
 
-    const isOverlap = await this.bookingRepository.checkFacilityOverlap(
-      facility.id,
-      bookingData.startTime,
-      bookingData.endTime,
-    );
-
-    if (isOverlap) {
-      throw new AppError(
-        "This facility is already booked or pending review for the selected dates.",
-        409,
-      );
-    }
-
-    // 2. Calculate the total cost dynamically based on the facility's pricing structure
-    const calculatedAmount = this._calculatePrice(
-      facility,
-      bookingData.startTime,
-      bookingData.endTime,
-    );
-
-    // 3. Create the booking in the database
-    // The status automatically defaults to "PENDING_CLERK_REVIEW"
     const newBooking = await this.bookingRepository.create({
       userId,
-      facilityId: facility.id,
+      facilityId: mainFacilityId, // Null if entirely custom, or main ID if package
+      customDetails: customDetails, // Stores the JSON array of ticked boxes
       startTime: bookingData.startTime,
       endTime: bookingData.endTime,
       eventType: bookingData.eventType,
       guestCount: bookingData.guestCount,
-      calculatedAmount,
-      securityDeposit: facility.securityDeposit,
+      calculatedAmount: totalAmount,
+      securityDeposit: totalSecurityDeposit,
     });
 
-    return { newBooking, facility };
+    return { newBooking };
   }
 
-  /**
-   * Gets unavailable dates for a facility to block out frontend calendar days.
-   */
+  // Replace your existing getUnavailableDates method with this:
   async getUnavailableDates(facilityId) {
-    // 1. Fetch the active bookings from the repository
-    const activeBookings =
-      await this.bookingRepository.findActiveBookingsForFacility(facilityId);
+    // 1. Get the facility the calendar is trying to load
+    const targetFacility = await this.facilityRepository.findById(facilityId);
+    if (!targetFacility) throw new AppError("Facility not found.", 404);
 
-    // 2. Map the database results into a clean array of start/end objects for the frontend
-    return activeBookings.map((booking) => ({
-      start: booking.startTime,
-      end: booking.endTime,
-      // Optional: Passing status lets the frontend show "Pending" vs "Confirmed" in different colors if they want
-      status: booking.status,
-    }));
+    // 2. Fetch ALL upcoming bookings across the entire system
+    const allUpcomingBookings =
+      await this.bookingRepository.findAllUpcomingActiveBookings();
+
+    const blockedDates = [];
+
+    // 3. Loop through every booking and check if it conflicts with our target facility
+    allUpcomingBookings.forEach((booking) => {
+      let isConflict = false;
+
+      // --- CASE A: The existing booking is a Custom Tick-Box Booking ---
+      if (booking.customDetails && booking.customDetails.length > 0) {
+        // Did they directly book our target facility?
+        const hasTarget = booking.customDetails.some(
+          (item) => item.name === targetFacility.name,
+        );
+
+        // Did they book a component that belongs inside our target package?
+        const targetInclusions =
+          targetFacility.pricingDetails?.included_facilities || [];
+        const blocksPackage = targetInclusions.some((inc) =>
+          booking.customDetails.some((item) => item.name === inc),
+        );
+
+        // Note: For rooms, we don't fully block the calendar unless all rooms are taken.
+        // For now, we block it if it's not a ROOM type.
+        if (
+          (hasTarget || blocksPackage) &&
+          targetFacility.facilityType !== "ROOM"
+        ) {
+          isConflict = true;
+        }
+      }
+
+      // --- CASE B: The existing booking is a Standard Package/Hall ---
+      if (booking.facility) {
+        // 1. Is it the exact same facility?
+        if (booking.facility.id === targetFacility.id) isConflict = true;
+
+        // 2. Does the booked package contain our target facility?
+        const bookedInclusions =
+          booking.facility.pricingDetails?.included_facilities || [];
+        if (bookedInclusions.includes(targetFacility.name)) isConflict = true;
+
+        // 3. Does our target package contain the booked package?
+        const targetInclusions =
+          targetFacility.pricingDetails?.included_facilities || [];
+        if (targetInclusions.includes(booking.facility.name)) isConflict = true;
+
+        // 4. Do the two packages share a common sub-component? (e.g., both use the Kitchen)
+        const sharedComponents = targetInclusions.filter((inc) =>
+          bookedInclusions.includes(inc),
+        );
+        if (sharedComponents.length > 0) isConflict = true;
+
+        // Allow multiple room bookings to overlap on the calendar visually
+        if (isConflict && targetFacility.facilityType === "ROOM") {
+          isConflict = false;
+        }
+      }
+
+      // If a conflict is found, push these dates to the calendar block-out list
+      if (isConflict) {
+        blockedDates.push({
+          start: booking.startTime,
+          end: booking.endTime,
+          status: booking.status,
+        });
+      }
+    });
+
+    return blockedDates;
   }
 
-  /**
-   * Checks if requested dates are available and returns a price quote.
-   */
-  async checkAvailabilityAndPrice(facilityId, startTime, endTime) {
-    // 1. Fetch the facility to ensure it exists and get its pricing rules
-    const facility = await this.facilityRepository.findById(facilityId);
-    if (!facility) {
-      throw new AppError("Facility not found.", 404);
-    }
+  async checkAvailabilityAndPrice(bookingData) {
+    try {
+      // 1. Check if they are trying to book a standard Package
+      if (bookingData.facilityId) {
+        const facility = await this.facilityRepository.findById(
+          bookingData.facilityId,
+        );
+        if (!facility) throw new AppError("Facility not found.", 404);
 
-    // 2. Check if the dates are already booked
-    const isOverlap = await this.bookingRepository.checkFacilityOverlap(
-      facilityId,
-      startTime,
-      endTime,
-    );
+        // Fetch overlaps to see what is taken
+        const overlaps = await this.bookingRepository.findOverlappingBookings(
+          bookingData.startTime,
+          bookingData.endTime,
+        );
+        let unavailableFacilities = new Set();
 
-    if (isOverlap) {
+        overlaps.forEach((booking) => {
+          if (booking.customDetails)
+            booking.customDetails.forEach((item) =>
+              unavailableFacilities.add(item.name),
+            );
+          if (booking.facility) {
+            unavailableFacilities.add(booking.facility.name);
+            if (booking.facility.pricingDetails?.included_facilities) {
+              booking.facility.pricingDetails.included_facilities.forEach(
+                (inc) => unavailableFacilities.add(inc),
+              );
+            }
+          }
+        });
+
+        // 2. Check if the package is entirely blocked or partially blocked
+        const packageInclusions =
+          facility.pricingDetails?.included_facilities || [];
+        let takenComponents = [];
+        let availableComponents = [];
+
+        packageInclusions.forEach((inc) => {
+          if (unavailableFacilities.has(inc)) {
+            takenComponents.push(inc);
+          } else {
+            availableComponents.push(inc);
+          }
+        });
+
+        // 3. If there are conflicts inside the package, return the PARTIAL availability response!
+        if (takenComponents.length > 0) {
+          // Fetch the database IDs of the remaining available items so the frontend can easily book them
+          const availableFacilitiesDb = await this.facilityRepository.findAll({
+            name: takenComponents.length > 0 ? availableComponents : [],
+          });
+
+          // Filter our DB results to match only the available names
+          const availableToBook = availableFacilitiesDb
+            .filter((f) => availableComponents.includes(f.name))
+            .map((f) => ({
+              facilityId: f.id,
+              name: f.name,
+              baseRate: f.baseRate,
+              quantity: 1, // Default quantity to 1
+            }));
+
+          return {
+            isAvailable: false,
+            isPartiallyAvailable: true,
+            message: `The full package is unavailable because ${takenComponents.join(", ")} is already booked. You can book the remaining facilities individually.`,
+            unavailableComponents: takenComponents,
+            availableAlternatives: availableToBook,
+          };
+        }
+      }
+
+      // 4. If everything is fully available (or it's a Custom booking check), proceed as normal
+      const { totalAmount, totalSecurityDeposit } =
+        await this._processAndValidateBookingItems(bookingData);
+
       return {
-        isAvailable: false,
-        message: "These dates are currently unavailable for this facility.",
+        isAvailable: true,
+        isPartiallyAvailable: false,
+        message: "Dates are completely available!",
+        pricing: {
+          baseCalculatedAmount: totalAmount,
+          securityDepositRequired: totalSecurityDeposit,
+          estimatedTotal: Number(totalAmount) + Number(totalSecurityDeposit),
+        },
       };
+    } catch (error) {
+      if (error instanceof AppError && error.statusCode === 409) {
+        return {
+          isAvailable: false,
+          isPartiallyAvailable: false,
+          message: error.message,
+        };
+      }
+      throw error;
+    }
+  }
+
+  async getMyBookings(userId) {
+    return await this.bookingRepository.findAll({ userId });
+  }
+
+  // --- CORE LOGIC ENGINE ---
+  async _processAndValidateBookingItems(bookingData) {
+    let totalAmount = 0;
+    let totalSecurityDeposit = 0;
+    let mainFacilityId = bookingData.facilityId || null;
+    let customDetails = null;
+
+    // 1. Fetch all overlaps to build a "Set" of unavailable facility names
+    const overlaps = await this.bookingRepository.findOverlappingBookings(
+      bookingData.startTime,
+      bookingData.endTime,
+    );
+    let unavailableFacilities = new Set();
+
+    overlaps.forEach((booking) => {
+      // If they booked custom items, block those specific names
+      if (booking.customDetails) {
+        booking.customDetails.forEach((item) =>
+          unavailableFacilities.add(item.name),
+        );
+      }
+      // If they booked a standard package/hall, block its name and all its sub-components
+      if (booking.facility) {
+        unavailableFacilities.add(booking.facility.name);
+        if (booking.facility.pricingDetails?.included_facilities) {
+          booking.facility.pricingDetails.included_facilities.forEach((inc) =>
+            unavailableFacilities.add(inc),
+          );
+        }
+      }
+    });
+
+    // 2. Process Custom Checkbox Mode
+    if (
+      bookingData.customFacilities &&
+      bookingData.customFacilities.length > 0
+    ) {
+      customDetails = [];
+
+      for (const item of bookingData.customFacilities) {
+        const fac = await this.facilityRepository.findById(item.facilityId);
+        if (!fac)
+          throw new AppError(`Facility ID ${item.facilityId} not found.`, 404);
+
+        // Conflict check for custom item
+        if (
+          unavailableFacilities.has(fac.name) &&
+          fac.facilityType !== "ROOM"
+        ) {
+          // Note: Rooms are excluded from strict blocking here to allow multiple people to book different rooms.
+          // You can add stricter inventory limits later.
+          throw new AppError(
+            `${fac.name} is already booked for these dates.`,
+            409,
+          );
+        }
+
+        const quantity = item.quantity || 1;
+        let itemTotal = 0;
+
+        // Multiply PER_ITEM (like Mattresses/Rooms), otherwise calculate standard time
+        if (fac.pricingType === "PER_ITEM") {
+          itemTotal = Number(fac.baseRate) * quantity;
+        } else {
+          itemTotal =
+            this._calculatePrice(
+              fac,
+              bookingData.startTime,
+              bookingData.endTime,
+            ) * quantity;
+        }
+
+        totalAmount += itemTotal;
+        totalSecurityDeposit += Number(fac.securityDeposit);
+
+        customDetails.push({
+          facilityId: fac.id,
+          name: fac.name,
+          quantity: quantity,
+          price: itemTotal,
+        });
+      }
+    }
+    // 3. Process Standard Package/Hall Mode
+    else if (bookingData.facilityId) {
+      const facility = await this.facilityRepository.findById(
+        bookingData.facilityId,
+      );
+      if (!facility) throw new AppError("Facility not found.", 404);
+
+      // Check if the package itself is blocked
+      if (unavailableFacilities.has(facility.name)) {
+        throw new AppError("This package is unavailable for these dates.", 409);
+      }
+
+      // Check if any of the sub-components inside the package are blocked
+      if (facility.pricingDetails?.included_facilities) {
+        for (const inc of facility.pricingDetails.included_facilities) {
+          if (unavailableFacilities.has(inc)) {
+            throw new AppError(
+              `Cannot book this package. Component '${inc}' is already booked by someone else.`,
+              409,
+            );
+          }
+        }
+      }
+
+      totalAmount = this._calculatePrice(
+        facility,
+        bookingData.startTime,
+        bookingData.endTime,
+      );
+      totalSecurityDeposit = facility.securityDeposit;
     }
 
-    // 3. If available, calculate the exact price they will pay using your pricing engine
-    const calculatedAmount = this._calculatePrice(facility, startTime, endTime);
-
-    return {
-      isAvailable: true,
-      message: "Dates are available!",
-      pricing: {
-        baseCalculatedAmount: calculatedAmount,
-        securityDepositRequired: facility.securityDeposit,
-        estimatedTotal:
-          Number(calculatedAmount) + Number(facility.securityDeposit),
-      },
-    };
+    return { totalAmount, totalSecurityDeposit, mainFacilityId, customDetails };
   }
 
-  /**
-   * Fetches all bookings belonging to a specific user.
-   */
-  async getMyBookings(userId) {
-    // We reuse your flexible findAll repository method here!
-    const bookings = await this.bookingRepository.findAll({ userId });
-    return bookings;
-  }
-
-  /**
-   * Internal calculation engine to parse the JSON pricing rules
-   */
   _calculatePrice(facility, startTime, endTime) {
     const start = new Date(startTime);
     const end = new Date(endTime);
-    const durationHours = Math.abs(end - start) / 36e5; // Convert milliseconds to hours
-    const durationDays = Math.ceil(durationHours / 24);
+    const durationHours = Math.abs(end - start) / 36e5;
+    const durationDays = Math.ceil(durationHours / 24) || 1; // Ensure at least 1 day
 
     const details = facility.pricingDetails;
     let total = Number(facility.baseRate);
 
     switch (facility.pricingType) {
       case "TIERED":
-        // Handles Complete Bhavan (1-day, 2-day, 3-day pricing)
         if (details && durationDays === 1 && details["1_day"])
           total = details["1_day"];
         else if (details && durationDays === 2 && details["2_days"])
           total = details["2_days"];
         else if (details && durationDays >= 3 && details["3_days"]) {
-          // Caps at the 3-day rate, adding base rate for any additional days
           total =
             details["3_days"] + (durationDays - 3) * Number(facility.baseRate);
         }
         break;
-
       case "HOURLY":
-        // Handles Meeting Hall (Base 5 hours + extra hourly rate)
         if (details && details.base_hours && details.extra_hour_rate) {
           if (durationHours > details.base_hours) {
             const extraHours = Math.ceil(durationHours - details.base_hours);
             total += extraHours * details.extra_hour_rate;
           }
         } else {
-          total = durationHours * total; // Standard hourly fallback
+          total = durationHours * total;
         }
         break;
-
       case "SLOT":
-        // Handles Dining Hall (Half-day <= 8 hrs vs Full-day)
         if (details && details.half_day && details.full_day) {
           total = durationHours <= 8 ? details.half_day : details.full_day;
         } else if (details && details.duration_hours) {
-          // Handles the 6-hour Main Hall package. Charges for a new slot if they exceed 6 hours.
           total = Math.ceil(durationHours / details.duration_hours) * total;
         }
         break;
-
       case "FIXED":
       case "PER_ITEM":
       default:
-        // Fixed packages (Lawn) or Per Item (Day Rooms, Mattresses) apply the base rate flatly.
         break;
     }
 

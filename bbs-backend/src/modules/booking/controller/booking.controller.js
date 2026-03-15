@@ -15,12 +15,12 @@ export class BookingController {
     const bookingData = req.body;
 
     // 3. Pass to the service for pricing calculation and database insertion
-    const { newBooking, facility } = await this.bookingService.createBooking(
+    const { newBooking } = await this.bookingService.createBooking(
       userId,
       bookingData,
     );
 
-    const formattedBooking = new BookingResponseDto(newBooking, facility);
+    const formattedBooking = new BookingResponseDto(newBooking);
 
     // 4. Return success response
     return res.status(201).json({
@@ -54,26 +54,35 @@ export class BookingController {
    * Handles the request to check if dates are available and returns a price quote.
    */
   checkAvailability = async (req, res, next) => {
-    // 1. Grab the details sent by the frontend calendar
-    const { facilityId, startTime, endTime } = req.body;
+    // 1. Grab the FULL request body (supports both facilityId and customFacilities)
+    const bookingData = req.body;
 
-    // 2. Make sure they actually sent all the required fields
-    if (!facilityId || !startTime || !endTime) {
+    // 2. Make sure they actually sent all the required time fields
+    if (!bookingData.startTime || !bookingData.endTime) {
       return res.status(400).json({
         success: false,
-        message:
-          "facilityId, startTime, and endTime are required to check availability.",
+        message: "startTime and endTime are required to check availability.",
       });
     }
 
-    // 3. Ask the service to check the dates and calculate the price
-    const result = await this.bookingService.checkAvailabilityAndPrice(
-      facilityId,
-      startTime,
-      endTime,
-    );
+    // 3. Validate that at least one type of booking is requested
+    if (
+      !bookingData.facilityId &&
+      (!bookingData.customFacilities ||
+        bookingData.customFacilities.length === 0)
+    ) {
+      return res.status(400).json({
+        success: false,
+        message:
+          "Please provide either a facilityId or an array of customFacilities.",
+      });
+    }
 
-    // 4. Send the result back to the frontend
+    // 4. Pass the entire object to the service so it can process custom arrays!
+    const result =
+      await this.bookingService.checkAvailabilityAndPrice(bookingData);
+
+    // 5. Send the result back to the frontend
     return res.status(200).json({
       success: true,
       data: result,
