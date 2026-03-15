@@ -12,7 +12,12 @@ export class AdminService {
   /**
    * Admin explicitly approves a booking and requests an advance payment.
    */
-  async approveBooking(bookingId, adminUserId, advanceAmountRequested) {
+  async approveBooking(
+    bookingId,
+    adminUserId,
+    advanceAmountRequested,
+    revisedTotalAmount,
+  ) {
     // 1. Fetch the existing booking to get the "previous state"
     const existingBooking = await this.bookingRepository.findById(bookingId);
 
@@ -47,6 +52,13 @@ export class AdminService {
       // 3. Update the booking status and set the required advance amount
       existingBooking.status = "PENDING_ADVANCE_PAYMENT";
       existingBooking.advanceAmountRequested = advanceAmountRequested;
+
+      if (revisedTotalAmount !== undefined && revisedTotalAmount !== null) {
+        if (Number(revisedTotalAmount) < 0) {
+          throw new AppError("Revised total amount cannot be negative.", 400);
+        }
+        existingBooking.calculatedAmount = revisedTotalAmount;
+      }
 
       await existingBooking.save({ transaction });
 
