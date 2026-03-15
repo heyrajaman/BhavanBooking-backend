@@ -70,15 +70,6 @@ const facilityData = [
     securityDeposit: 0.0,
   },
   {
-    name: "Standard Room",
-    description: "Individual room booking. Select quantity needed.",
-    facilityType: "ROOM",
-    pricingType: "PER_ITEM",
-    baseRate: 1500.0,
-    pricingDetails: { is_atomic: true },
-    securityDeposit: 0.0,
-  },
-  {
     name: "Meeting Hall",
     description:
       "Monday to Saturday (6:00 PM – 11:00 PM). Extra hour charges apply.",
@@ -141,7 +132,6 @@ const facilityData = [
       included_facilities: [
         "Big Hall",
         "Dining Hall",
-        "Mini Hall (Capacity 75)",
         "Stage",
         "Kitchen",
         "Lawn",
@@ -150,7 +140,6 @@ const facilityData = [
         "Meeting Hall",
         "Day Room (4 Bedded)",
         "Day Room (Double Bed)",
-        "Dormitory (15 persons)",
       ],
     },
     securityDeposit: 25000.0,
