@@ -26,12 +26,13 @@ const facilityData = [
   },
   {
     name: "Mini Hall (Capacity 75)",
-    description: "Compact hall ideal for small functions up to 75 people.",
+    description:
+      "Evening slot (6:00 PM – 11:00 PM). Extra hours billed at ₹3000/hr.",
     facilityType: "HALL",
-    pricingType: "FIXED",
-    baseRate: 10000.0,
-    pricingDetails: { is_atomic: true },
-    securityDeposit: 5000.0,
+    pricingType: "HOURLY",
+    baseRate: 12000.0,
+    pricingDetails: { base_hours: 5, extra_hour_rate: 3000, is_atomic: true },
+    securityDeposit: 25000.0,
   },
   {
     name: "Stage",
@@ -68,16 +69,6 @@ const facilityData = [
     baseRate: 3000.0,
     pricingDetails: { is_atomic: true },
     securityDeposit: 0.0,
-  },
-  {
-    name: "Meeting Hall",
-    description:
-      "Monday to Saturday (6:00 PM – 11:00 PM). Extra hour charges apply.",
-    facilityType: "HALL",
-    pricingType: "HOURLY",
-    baseRate: 12000.0,
-    pricingDetails: { base_hours: 5, extra_hour_rate: 3000, is_atomic: true },
-    securityDeposit: 25000.0,
   },
   {
     name: "Day Room (4 Bedded)",
@@ -137,7 +128,6 @@ const facilityData = [
         "Lawn",
         "Parking",
         "Standard Room",
-        "Meeting Hall",
         "Day Room (4 Bedded)",
         "Day Room (Double Bed)",
       ],

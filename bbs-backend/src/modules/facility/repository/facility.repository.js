@@ -30,4 +30,15 @@ export class FacilityRepository {
       where: { isActive: true },
     });
   }
+
+  // Add this inside FacilityRepository class
+  async create(facilityData) {
+    return await Facility.create(facilityData);
+  }
+
+  async update(id, updateData) {
+    const facility = await Facility.findByPk(id);
+    if (!facility) return null;
+    return await facility.update(updateData);
+  }
 }
