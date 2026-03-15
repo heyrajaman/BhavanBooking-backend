@@ -17,8 +17,7 @@ export class AdminController {
       const { bookingId } = req.params;
       const adminUserId = req.user.id; // Extracted from JWT token
 
-      // Grab the advance amount from the frontend request body
-      const { advanceAmountRequested } = req.body;
+      const { advanceAmountRequested, revisedTotalAmount } = req.body;
 
       if (!advanceAmountRequested) {
         return res.status(400).json({
@@ -31,6 +30,7 @@ export class AdminController {
         bookingId,
         adminUserId,
         advanceAmountRequested,
+        revisedTotalAmount,
       );
 
       return res.status(200).json({
@@ -40,6 +40,7 @@ export class AdminController {
         data: {
           status: updatedBooking.status,
           advanceAmountRequested: updatedBooking.advanceAmountRequested,
+          calculatedAmount: updatedBooking.calculatedAmount,
         },
       });
     } catch (error) {
