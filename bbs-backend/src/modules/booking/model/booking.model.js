@@ -63,6 +63,10 @@ export default class Booking extends Model {
           type: DataTypes.DECIMAL(10, 2),
           allowNull: true, // The Clerk will fill this in when they push to PENDING_ADVANCE_PAYMENT
         },
+        razorpayPaymentId: {
+          type: DataTypes.STRING,
+          allowNull: true, // We will fill this when the user successfully pays
+        },
         paymentStatus: {
           type: DataTypes.ENUM("PENDING", "PARTIAL", "COMPLETED", "REFUNDED"),
           defaultValue: "PENDING",

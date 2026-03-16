@@ -1,73 +1,59 @@
 // src/modules/booking/dto/booking.request.dto.js
+import Joi from "joi";
 
-export class CreateBookingDto {
-  constructor(data) {
-    this.facilityId = data.facilityId;
-    this.customFacilities = data.customFacilities;
-    this.startTime = data.startTime;
-    this.endTime = data.endTime;
-    this.eventType = data.eventType;
-    this.guestCount = data.guestCount;
-  }
+export const CreateBookingDto = Joi.object({
+  facilityId: Joi.string().uuid().optional().messages({
+    "string.guid": "Facility ID must be a valid UUID.",
+  }),
 
-  isValid() {
-    // 1. Ensure at least one type of facility is being booked
-    if (
-      !this.facilityId &&
-      (!this.customFacilities || this.customFacilities.length === 0)
-    ) {
-      throw new Error(
-        "Either a main Facility ID or custom facilities must be provided.",
-      );
-    }
-
-    // 2. Validate custom facilities if they are provided
-    if (this.customFacilities && this.customFacilities.length > 0) {
-      if (!Array.isArray(this.customFacilities)) {
-        throw new Error("Custom facilities must be an array.");
-      }
-      for (const item of this.customFacilities) {
-        if (!item.facilityId) {
-          throw new Error(
+  customFacilities: Joi.array()
+    .items(
+      Joi.object({
+        facilityId: Joi.string().uuid().required().messages({
+          "any.required":
             "Each custom facility selection must include a facilityId.",
-          );
-        }
-        if (
-          !item.quantity ||
-          !Number.isInteger(item.quantity) ||
-          item.quantity <= 0
-        ) {
-          throw new Error(
+          "string.guid": "Facility ID must be a valid UUID.",
+        }),
+        quantity: Joi.number().integer().min(1).required().messages({
+          "number.base": "Quantity must be a number.",
+          "number.min":
             "Each custom facility selection must have a valid quantity greater than 0.",
-          );
-        }
-      }
-    }
+          "any.required": "Quantity is required.",
+        }),
+      }),
+    )
+    .optional()
+    .messages({
+      "array.base": "Custom facilities must be an array.",
+    }),
 
-    if (!this.startTime || !this.endTime)
-      throw new Error("Start and End times are required.");
-    if (!this.eventType)
-      throw new Error("Event type (e.g., Marriage, Meeting) is required.");
-    if (!this.guestCount || this.guestCount <= 0)
-      throw new Error("A valid guest count is required.");
+  startTime: Joi.date().iso().min("now").required().messages({
+    "date.format": "Invalid date format. Use ISO 8601 format.",
+    "date.min": "Booking start time cannot be in the past.",
+    "any.required": "Start time is required.",
+  }),
 
-    const start = new Date(this.startTime);
-    const end = new Date(this.endTime);
+  endTime: Joi.date().iso().greater(Joi.ref("startTime")).required().messages({
+    "date.format": "Invalid date format. Use ISO 8601 format.",
+    "date.greater": "End time must be after the start time.",
+    "any.required": "End time is required.",
+  }),
 
-    // Ensure valid date formatting
-    if (isNaN(start.getTime()) || isNaN(end.getTime())) {
-      throw new Error("Invalid date format. Use ISO 8601 format.");
-    }
+  eventType: Joi.string().trim().required().messages({
+    "any.required": "Event type (e.g., Marriage, Meeting) is required.",
+    "string.empty": "Event type cannot be empty.",
+  }),
 
-    // Logical time checks
-    if (start >= end) {
-      throw new Error("End time must be after the start time.");
-    }
-
-    if (start < new Date()) {
-      throw new Error("Booking start time cannot be in the past.");
-    }
-
-    return true;
-  }
-}
+  guestCount: Joi.number().integer().min(1).required().messages({
+    "number.base": "Guest count must be a number.",
+    "number.min": "A valid guest count is required.",
+    "any.required": "A valid guest count is required.",
+  }),
+})
+  // This ensures at least ONE of these two fields is provided in the payload
+  .or("facilityId", "customFacilities")
+  .messages({
+    "object.missing":
+      "Either a main Facility ID or custom facilities must be provided.",
+  })
+  .options({ stripUnknown: true });

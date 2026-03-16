@@ -1,3 +1,4 @@
+// src/modules/billing/routes/billing.routes.js
 import { Router } from "express";
 import { BillingController } from "../controller/billing.controller.js";
 
@@ -9,37 +10,46 @@ import {
 } from "../../../middlewares/auth.middleware.js";
 import { catchAsync } from "../../../utils/catchAsync.js";
 
-// DTOs (Assuming we created these in the dto folder)
-import { CheckoutRequestDto } from "../dto/checkout.request.dto.js";
-import { CheckInRequestDto } from "../dto/checkin.request.dto.js";
+// DTOs
+import { GenerateInvoiceDto, ApproveInvoiceDto } from "../dto/invoice.dto.js";
+import { UuidParamDto } from "../../../middlewares/common.dto.js";
+// (Assuming you still have CheckInRequestDto for the check-in route)
+// import { CheckInRequestDto } from "../dto/checkin.request.dto.js";
 
 const router = Router();
 const billingController = new BillingController();
 
 /**
  * ==========================================
- * OPERATIONAL API ROUTES (/api/v1/operations)
+ * BILLING API ROUTES (/api/v1/billing)
  * ==========================================
  */
 
-// 1. GUEST CHECK-IN
-// Access: Clerk or Admin Only
+// 1. MAKER: Generate Draft Invoice (Clerks & Admins)
 router.post(
-  "/:bookingId/checkin",
+  "/:bookingId/draft-invoice",
   protectRoute,
-  restrictTo("CLERK", "ADMIN"), // Strict Access Control
-  validateDto(CheckInRequestDto), // Enforces Aadhaar and Max 6 Guests rules
-  catchAsync(billingController.processCheckIn),
+  restrictTo("CLERK", "ADMIN"), // Clerks can draft it
+  validateDto(GenerateInvoiceDto),
+  catchAsync(billingController.generateDraftInvoice),
 );
 
-// 2. GUEST CHECK-OUT & SETTLEMENT
-// Access: Clerk or Admin Only
-router.post(
-  "/:bookingId/checkout",
+// GET: Fetch invoice by Booking ID
+router.get(
+  "/:bookingId/invoice",
   protectRoute,
   restrictTo("CLERK", "ADMIN"),
-  validateDto(CheckoutRequestDto), // Enforces Meter Readings presence
-  catchAsync(billingController.processCheckOut),
+  validateDto(UuidParamDto, "params"), // Uses the Uuid param validator we made
+  catchAsync(billingController.getInvoice),
+);
+
+// 2. CHECKER: Approve or Reject Invoice (Strictly Admins)
+router.patch(
+  "/invoice/:invoiceId/approve",
+  protectRoute,
+  restrictTo("ADMIN"), // ONLY Admins can approve
+  validateDto(ApproveInvoiceDto),
+  catchAsync(billingController.processAdminApproval),
 );
 
 export default router;

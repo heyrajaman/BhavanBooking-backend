@@ -1,73 +1,150 @@
-// Assume we have imported the necessary repositories
-// import { InvoiceRepository } from '../repository/invoice.repository.js';
-// import { BookingRepository } from '../../booking/repository/booking.repository.js';
+// src/modules/billing/service/billing.service.js
+import Invoice from "../model/invoice.model.js";
+import Booking from "../../booking/model/booking.model.js";
+import { AppError } from "../../../utils/AppError.js";
+import { PaymentService } from "../../payment/service/payment.service.js";
 
 export class BillingService {
   constructor() {
-    // this.invoiceRepository = new InvoiceRepository();
-    // this.bookingRepository = new BookingRepository();
+    this.paymentService = new PaymentService();
+  }
+  /**
+   * MAKER: Clerk drafts the invoice.
+   * Calculates deductions but does NOT finalize the checkout.
+   */
+  async generateDraftInvoice(dto, clerkId) {
+    // 1. Fetch the booking to get the Security Deposit
+    const booking = await Booking.findByPk(dto.bookingId);
+    if (!booking) {
+      throw new AppError("Booking not found", 404);
+    }
+
+    // Ensure an invoice hasn't already been drafted or approved
+    const existingInvoice = await Invoice.findOne({
+      where: { bookingId: dto.bookingId },
+    });
+    if (existingInvoice && existingInvoice.approvalStatus !== "REJECTED") {
+      throw new AppError(
+        "An active invoice already exists for this booking",
+        400,
+      );
+    }
+
+    const securityDeposit = parseFloat(booking.securityDeposit || 0);
+
+    // 2. Business Rules Calculations (Your FRS logic)
+    const electricityCharges = dto.electricityUnitsConsumed * 14; // ₹14 per unit
+    const cleaningCharges = dto.cleaningCharges;
+    const generatorCharges = dto.generatorCharges;
+
+    // Tally up Penalties
+    let totalPenalties = 0;
+    if (dto.damagesAndPenalties && dto.damagesAndPenalties.length > 0) {
+      totalPenalties = dto.damagesAndPenalties.reduce(
+        (sum, item) => sum + item.amount,
+        0,
+      );
+    }
+
+    // Total Deductions
+    const totalDeductions =
+      electricityCharges + cleaningCharges + generatorCharges + totalPenalties;
+
+    // 3. Calculate Final Refund / Balance Due
+    let finalRefundAmount = securityDeposit - totalDeductions;
+    let additionalBalanceDue = 0;
+
+    if (finalRefundAmount < 0) {
+      additionalBalanceDue = Math.abs(finalRefundAmount);
+      finalRefundAmount = 0;
+    }
+
+    // 4. Save the Draft Invoice (Status defaults to PENDING_ADMIN_APPROVAL)
+    const draftInvoice = await Invoice.create({
+      bookingId: dto.bookingId,
+      generatedBy: clerkId, // Clerk who made it
+      electricityUnitsConsumed: dto.electricityUnitsConsumed,
+      electricityCharges,
+      cleaningCharges,
+      generatorCharges,
+      damagesAndPenalties: dto.damagesAndPenalties,
+      totalDeductions,
+      securityDepositHeld: securityDeposit,
+      finalRefundAmount,
+      additionalBalanceDue,
+      approvalStatus: "PENDING_ADMIN_APPROVAL",
+    });
+
+    return draftInvoice;
+  }
+
+  async getInvoiceByBookingId(bookingId) {
+    const invoice = await Invoice.findOne({ where: { bookingId } });
+    if (!invoice) {
+      throw new AppError("No invoice found for this booking", 404);
+    }
+    return invoice;
   }
 
   /**
-   * Calculates the final settlement at checkout.
-   * @param {CheckoutRequestDto} dto - The validated checkout data
+   * CHECKER: Admin reviews the drafted invoice.
    */
-  async calculateFinalSettlement(dto) {
-    // 1. Fetch the original booking and its associated preliminary invoice
-    // const booking = await this.bookingRepository.findById(dto.bookingId);
-    // const invoice = await this.invoiceRepository.findByBookingId(dto.bookingId);
+  async processAdminApproval(invoiceId, dto, adminId) {
+    const invoice = await Invoice.findByPk(invoiceId);
+    if (!invoice) throw new AppError("Invoice not found", 404);
 
-    // For this example, let's assume we fetched these values from the DB:
-    const securityDeposit = 25000; // e.g., 1 Day booking deposit
-    const bookingDays = 1;
-
-    // 2. Calculate Electricity (FRS Rule: Units Consumed * ₹14)
-    const unitsConsumed = dto.endMeterReading - dto.startMeterReading;
-    const electricityCharge = unitsConsumed * 14;
-
-    // 3. Calculate Standard Cleaning Fee (FRS Rule: ₹3,000 per day)
-    const cleaningCharge = bookingDays * 3000;
-
-    // 4. Calculate Generator Fee (FRS Rule: ₹2,000 per hour)
-    const generatorCharge = dto.generatorHours * 2000;
-
-    // 5. Tally up Penalties (e.g., FRS Rule: ₹10,000 fine for cooking in lawn)
-    let totalPenalties = 0;
-    for (const penalty of dto.penalties) {
-      totalPenalties += penalty.amount;
+    if (invoice.approvalStatus !== "PENDING_ADMIN_APPROVAL") {
+      throw new AppError(`Invoice is already ${invoice.approvalStatus}`, 400);
     }
 
-    // 6. Calculate Total Deductions
-    const totalDeductions =
-      electricityCharge + cleaningCharge + generatorCharge + totalPenalties;
+    const booking = await Booking.findByPk(invoice.bookingId);
+    if (!booking) throw new AppError("Associated booking not found", 404);
 
-    // 7. Calculate Final Refund Amount
-    let refundAmount = securityDeposit - totalDeductions;
-    let balanceDue = 0;
+    // If Admin Rejects
+    if (dto.status === "REJECTED") {
+      invoice.approvalStatus = "REJECTED";
+      invoice.adminRemarks = dto.adminRemarks;
+      invoice.approvedBy = adminId;
+      await invoice.save();
 
-    // Edge Case: What if they did so much damage that the security deposit isn't enough?
-    if (refundAmount < 0) {
-      balanceDue = Math.abs(refundAmount);
-      refundAmount = 0;
+      return { message: "Invoice rejected. Sent back to clerk.", invoice };
     }
 
-    const settlementReport = {
-      bookingId: dto.bookingId,
-      securityDepositHeld: securityDeposit,
-      deductions: {
-        electricity: electricityCharge,
-        cleaning: cleaningCharge,
-        generator: generatorCharge,
-        penalties: totalPenalties,
-      },
-      totalDeductions,
-      finalRefundAmount: refundAmount,
-      additionalBalanceDue: balanceDue,
+    // --- IF ADMIN APPROVES ---
+
+    // 1. Process Refund if applicable
+    let refundDetails = null;
+    if (invoice.finalRefundAmount > 0) {
+      if (!booking.razorpayPaymentId) {
+        // Fallback: If for some reason we don't have the Razorpay ID, we mark it for manual refund
+        invoice.adminRemarks =
+          "Approved successfully. Manual refund required (No Payment ID found).";
+      } else {
+        // Trigger the Razorpay Refund via PaymentService
+        const refundResponse = await this.paymentService.processRefund(
+          booking.razorpayPaymentId,
+          invoice.finalRefundAmount,
+        );
+        refundDetails = refundResponse.id; // Store Razorpay Refund ID
+        invoice.adminRemarks = `Approved successfully. Refund initiated (Refund ID: ${refundDetails}).`;
+      }
+    } else {
+      invoice.adminRemarks = "Approved successfully. No refund due.";
+    }
+
+    // 2. Save Invoice Status
+    invoice.approvalStatus = "APPROVED";
+    invoice.approvedBy = adminId;
+    await invoice.save();
+
+    // 3. Complete the Booking
+    booking.status = "COMPLETED";
+    await booking.save();
+
+    return {
+      message: "Invoice approved and checkout completed.",
+      refundId: refundDetails,
+      settlementReport: invoice,
     };
-
-    // 8. Here we would save these final calculations to the Database via InvoiceRepository
-    // await this.invoiceRepository.updateFinalInvoice(dto.bookingId, settlementReport);
-
-    return settlementReport;
   }
 }

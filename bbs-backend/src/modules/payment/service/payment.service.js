@@ -207,9 +207,36 @@ export class PaymentService {
 
     // Update the Payment Status to COMPLETED!
     booking.paymentStatus = "COMPLETED";
-    // We leave status as "CONFIRMED" because the booking itself was already confirmed
+    booking.razorpayPaymentId = razorpay_payment_id;
     await booking.save();
 
     return booking;
+  }
+
+  /**
+   * 5. Processes a refund for a specific payment ID
+   */
+  async processRefund(paymentId, amountInRupees) {
+    try {
+      if (!paymentId) {
+        throw new AppError("Payment ID is required to process a refund.", 400);
+      }
+
+      // Razorpay expects the amount in paise
+      const amountInPaise = Math.round(Number(amountInRupees) * 100);
+
+      const refund = await razorpayInstance.payments.refund(paymentId, {
+        amount: amountInPaise,
+        speed: "normal", // 'optimum' or 'normal'
+      });
+
+      return refund;
+    } catch (error) {
+      console.error("DEBUG RAZORPAY ERROR:", error.error || error);
+      throw new AppError(
+        "Failed to process refund with the payment gateway.",
+        500,
+      );
+    }
   }
 }
