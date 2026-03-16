@@ -1,59 +1,37 @@
 // src/modules/admin/dto/admin.auth.dto.js
+import Joi from "joi";
 
-export class AdminLoginDto {
-  constructor(data) {
-    this.mobile = data.mobile;
-    this.password = data.password;
-  }
+const mobileRegex = /^[0-9]{10}$/;
 
-  isValid() {
-    if (!this.mobile || !this.password) {
-      throw new Error("Mobile and password are required.");
-    }
+// Enforces 8-16 chars, 1 uppercase, 1 lowercase, 1 number, 1 special char
+const passwordRegex =
+  /^(?=.*[a-z])(?=.*[A-Z])(?=.*\d)(?=.*[@$!%*?&])[A-Za-z\d@$!%*?&]{8,16}$/;
 
-    const mobileRegex = /^[0-9]{10}$/;
-    if (!mobileRegex.test(this.mobile)) {
-      throw new Error("Mobile number must be exactly 10 digits.");
-    }
+export const AdminLoginDto = Joi.object({
+  mobile: Joi.string().pattern(mobileRegex).required().messages({
+    "string.pattern.base": "Mobile number must be exactly 10 digits.",
+    "any.required": "Mobile is required.",
+  }),
+  password: Joi.string().required().messages({
+    "any.required": "Password is required.",
+  }),
+}).options({ stripUnknown: true });
 
-    return true;
-  }
-}
-
-export class CreateClerkDto {
-  constructor(data) {
-    this.fullName = data.fullName;
-    this.mobile = data.mobile;
-    this.password = data.password;
-    this.email = data.email;
-  }
-
-  isValid() {
-    if (!this.fullName || !this.mobile || !this.password) {
-      throw new Error("FullName, mobile, and password are required.");
-    }
-
-    const mobileRegex = /^[0-9]{10}$/;
-    if (!mobileRegex.test(this.mobile)) {
-      throw new Error("Mobile number must be exactly 10 digits.");
-    }
-
-    // Enforces 8-16 chars, 1 uppercase, 1 lowercase, 1 number, 1 special char
-    const passwordRegex =
-      /^(?=.*[a-z])(?=.*[A-Z])(?=.*\d)(?=.*[@$!%*?&])[A-Za-z\d@$!%*?&]{8,16}$/;
-    if (!passwordRegex.test(this.password)) {
-      throw new Error(
-        "Password must be 8-16 characters long and include at least one uppercase letter, one lowercase letter, one number, and one special character.",
-      );
-    }
-
-    if (this.email) {
-      const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
-      if (!emailRegex.test(this.email)) {
-        throw new Error("Please provide a valid email address.");
-      }
-    }
-
-    return true;
-  }
-}
+export const CreateClerkDto = Joi.object({
+  fullName: Joi.string().trim().required().messages({
+    "any.required": "FullName is required.",
+    "string.empty": "FullName cannot be empty.",
+  }),
+  mobile: Joi.string().pattern(mobileRegex).required().messages({
+    "string.pattern.base": "Mobile number must be exactly 10 digits.",
+    "any.required": "Mobile is required.",
+  }),
+  password: Joi.string().pattern(passwordRegex).required().messages({
+    "string.pattern.base":
+      "Password must be 8-16 characters long and include at least one uppercase letter, one lowercase letter, one number, and one special character.",
+    "any.required": "Password is required.",
+  }),
+  email: Joi.string().email().allow(null, "").optional().messages({
+    "string.email": "Please provide a valid email address.",
+  }),
+}).options({ stripUnknown: true });

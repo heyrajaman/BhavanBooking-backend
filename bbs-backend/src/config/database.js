@@ -4,6 +4,7 @@ import dotenv from "dotenv";
 import User from "../modules/user/model/user.model.js";
 import Booking from "../modules/booking/model/booking.model.js";
 import Facility from "../modules/facility/model/facility.model.js";
+import Invoice from "../modules/billing/model/invoice.model.js";
 
 // Load environment variables (ensure this happens before using process.env)
 dotenv.config({ quiet: true });
@@ -32,17 +33,20 @@ const sequelize = new Sequelize(
 User.initModel(sequelize);
 Booking.initModel(sequelize);
 Facility.initModel(sequelize);
+Invoice.initModel(sequelize);
 
 const models = {
   User,
   Booking,
   Facility,
+  Invoice,
 };
 
 // 3. Execute the associations (Foreign Keys & Relationships)
 if (User.associate) User.associate(models);
 if (Booking.associate) Booking.associate(models);
 if (Facility.associate) Facility.associate(models);
+if (Invoice.associate) Invoice.associate(models);
 
 export const connectDatabase = async () => {
   try {

@@ -1,26 +1,31 @@
+// src/middlewares/validate.js
 import { AppError } from "../utils/AppError.js";
 
 /**
- * Professional DTO Validation Middleware.
- * Instantiates the DTO, validates it, and attaches the clean object to the request.
+ * Middleware to validate incoming request data using Joi schemas.
+ * @param {Object} schema - The Joi schema to validate against.
+ * @param {String} source - The property of the request to validate (e.g., 'body', 'query', 'params'). Defaults to 'body'.
  */
-export const validateDto = (DtoClass) => {
+export const validateDto = (schema, source = "body") => {
   return (req, res, next) => {
-    try {
-      // 1. Create the DTO instance from the raw incoming data
-      const cleanDto = new DtoClass(req.body);
+    // We use abortEarly: false so Joi returns ALL validation errors, not just the first one it finds.
+    const { error, value } = schema.validate(req[source], {
+      abortEarly: false,
+    });
 
-      // 2. Run the validation logic (throws an error if missing fields)
-      cleanDto.isValid();
-
-      // 3. The Professional Move: Overwrite req.body with the sanitized DTO!
-      // Now, any malicious extra fields sent by a hacker are completely stripped out.
-      req.body = cleanDto;
-
-      next(); // Move to the next middleware or controller
-    } catch (error) {
-      // If validation fails, immediately kick them out with a 400 Bad Request
-      next(new AppError(error.message, 400));
+    if (error) {
+      // Extract all error messages and join them into a single readable string
+      const errorMessage = error.details
+        .map((detail) => detail.message)
+        .join("; ");
+      return next(new AppError(errorMessage, 400));
     }
+
+    // Replace the request data with the validated value.
+    // Because we used .options({ stripUnknown: true }) in our DTOs,
+    // this also safely removes any extra malicious fields!
+    req[source] = value;
+
+    next();
   };
 };
