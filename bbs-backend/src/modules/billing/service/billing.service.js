@@ -59,6 +59,26 @@ export class BillingService {
       finalRefundAmount = 0;
     }
 
+    if (existingInvoice) {
+      existingInvoice.electricityUnitsConsumed = dto.electricityUnitsConsumed;
+      existingInvoice.electricityCharges = electricityCharges;
+      existingInvoice.cleaningCharges = cleaningCharges;
+      existingInvoice.generatorCharges = generatorCharges;
+      existingInvoice.damagesAndPenalties = dto.damagesAndPenalties;
+      existingInvoice.totalDeductions = totalDeductions;
+      existingInvoice.securityDepositHeld = securityDeposit;
+      existingInvoice.finalRefundAmount = finalRefundAmount;
+      existingInvoice.additionalBalanceDue = additionalBalanceDue;
+
+      // Reset the status back to pending and clear the old rejection note!
+      existingInvoice.approvalStatus = "PENDING_ADMIN_APPROVAL";
+      existingInvoice.generatedBy = clerkId;
+      existingInvoice.adminRemarks = null;
+
+      await existingInvoice.save();
+      return existingInvoice;
+    }
+
     // 4. Save the Draft Invoice (Status defaults to PENDING_ADMIN_APPROVAL)
     const draftInvoice = await Invoice.create({
       bookingId: dto.bookingId,

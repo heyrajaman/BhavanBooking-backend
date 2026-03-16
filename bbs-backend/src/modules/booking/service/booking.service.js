@@ -2,11 +2,13 @@
 import { BookingRepository } from "../repository/booking.repository.js";
 import { FacilityRepository } from "../../facility/repository/facility.repository.js";
 import { AppError } from "../../../utils/AppError.js";
+import { NotificationService } from "../../notification/service/notification.service.js";
 
 export class BookingService {
   constructor() {
     this.bookingRepository = new BookingRepository();
     this.facilityRepository = new FacilityRepository();
+    this.notificationService = new NotificationService();
   }
 
   async createBooking(userId, bookingData) {
@@ -326,6 +328,61 @@ export class BookingService {
     }
 
     return { totalAmount, totalSecurityDeposit, mainFacilityId, customDetails };
+  }
+
+  // --- STAFF ACTIONS ---
+
+  async rejectBooking(bookingId) {
+    // 1. Fetch the booking using your repository
+    const booking = await this.bookingRepository.findById(bookingId);
+    if (!booking) {
+      throw new AppError("Booking not found.", 404);
+    }
+
+    // 2. Prevent rejecting bookings that are already finalized
+    const unrejectableStates = [
+      "CONFIRMED",
+      "CHECKED_IN",
+      "CHECKED_OUT",
+      "CANCELLED",
+      "REJECTED",
+    ];
+    if (unrejectableStates.includes(booking.status)) {
+      throw new AppError(
+        `Cannot reject a booking that is currently in ${booking.status} state.`,
+        400,
+      );
+    }
+
+    // 3. Update the status
+    booking.status = "REJECTED";
+    await booking.save();
+
+    try {
+      // Fetch the associated user to get their email and name
+      const user = await booking.getUser();
+
+      if (user && user.email) {
+        // Fire and forget (no 'await')
+        const hardcodedReason =
+          "The requested facility/time slot is already booked manually.";
+
+        this.notificationService
+          .sendBookingRejectionEmail(
+            user.email,
+            user.fullName,
+            booking.id,
+            hardcodedReason,
+          )
+          .catch((err) =>
+            console.error("Rejection email failed to send in background:", err),
+          );
+      }
+    } catch (emailError) {
+      console.error("Failed to fetch user for rejection email:", emailError);
+    }
+
+    return booking;
   }
 
   _calculatePrice(facility, startTime, endTime) {

@@ -5,6 +5,7 @@ import { validateDto } from "../../../middlewares/validate.js";
 import { CreateBookingDto } from "../dto/booking.request.dto.js";
 import { catchAsync } from "../../../utils/catchAsync.js";
 import { protect, restrictTo } from "../../../middlewares/auth.middleware.js";
+import { UuidParamDto } from "../../../middlewares/common.dto.js";
 
 const router = Router();
 const bookingController = new BookingController();
@@ -36,6 +37,15 @@ router.post(
   protect, // 1. Ensure the user is logged in
   validateDto(CreateBookingDto), // 2. Validate the incoming form payload
   catchAsync(bookingController.createBooking), // 3. Execute the controller logic
+);
+
+// PATCH /api/v1/bookings/:bookingId/reject - Staff rejects a booking
+router.patch(
+  "/:bookingId/reject",
+  protect, // 1. Must be logged in
+  restrictTo("CLERK", "ADMIN"), // 2. Must be a staff member
+  validateDto(UuidParamDto, "params"), // 3. Ensure valid URL ID
+  catchAsync(bookingController.rejectBooking),
 );
 
 export default router;

@@ -3,10 +3,12 @@ import crypto from "crypto";
 import { razorpayInstance } from "../../../config/razorpay.js";
 import { BookingRepository } from "../../booking/repository/booking.repository.js";
 import { AppError } from "../../../utils/AppError.js";
+import { NotificationService } from "../../notification/service/notification.service.js";
 
 export class PaymentService {
   constructor() {
     this.bookingRepository = new BookingRepository();
+    this.notificationService = new NotificationService();
   }
 
   /**
@@ -102,6 +104,16 @@ export class PaymentService {
     booking.paymentStatus = "PARTIAL";
     booking.status = "CONFIRMED";
     await booking.save();
+
+    if (user && user.email) {
+      // We don't use 'await' here because we don't want the user to wait for the email
+      // to send before getting their success response on the frontend!
+      this.notificationService
+        .sendBookingConfirmationEmail(user.email, user.fullName, booking.id)
+        .catch((err) =>
+          console.error("Email failed, but booking confirmed:", err),
+        );
+    }
 
     return booking;
   }
