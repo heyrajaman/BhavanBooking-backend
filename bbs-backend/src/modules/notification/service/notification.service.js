@@ -38,4 +38,27 @@ export class NotificationService {
 
     await sendEmail({ to: userEmail, subject, html });
   }
+
+  /**
+   * Send Booking Rejection Email
+   */
+  async sendBookingRejectionEmail(toEmail, userName, bookingId, reason) {
+    const subject = "Update on your Bhavan Booking Application";
+
+    const html = `
+      <div style="font-family: Arial, sans-serif; padding: 20px; line-height: 1.6; color: #333;">
+        <h2 style="color: #d9534f;">Booking Application Update</h2>
+        <p>Dear ${userName},</p>
+        <p>We are sorry to inform you that your booking application (ID: <strong>${bookingId}</strong>) could not be approved at this time.</p>
+        <p><strong>Reason for Rejection:</strong> ${reason}</p>
+        <p>We sincerely apologize for the inconvenience. Please feel free to check our portal for other available dates or alternative facilities.</p>
+        <br>
+        <p>Best Regards,</p>
+        <p><strong>Bhavan Booking Management Team</strong></p>
+      </div>
+    `;
+
+    // sendEmail is your utility wrapper from utils/email.js
+    return sendEmail({ to: toEmail, subject, html });
+  }
 }

@@ -112,4 +112,25 @@ export class BookingController {
       data: formattedBookings,
     });
   };
+
+  /**
+   * STAFF: Rejects a pending booking application.
+   */
+  rejectBooking = async (req, res, next) => {
+    // 1. Grab the booking ID from the URL
+    const { bookingId } = req.params;
+
+    // 2. Call the service to update the database
+    const rejectedBooking = await this.bookingService.rejectBooking(bookingId);
+
+    // 3. Format the response using your existing DTO
+    const formattedBooking = new BookingResponseDto(rejectedBooking);
+
+    // 4. Send success response
+    return res.status(200).json({
+      success: true,
+      message: "Booking application has been successfully rejected.",
+      data: formattedBooking,
+    });
+  };
 }

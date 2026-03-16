@@ -2,11 +2,13 @@ import { BookingRepository } from "../../booking/repository/booking.repository.j
 import { AuditRepository } from "../repository/audit.repository.js";
 import sequelize from "../../../config/database.js"; // Needed for transactions
 import { AppError } from "../../../utils/AppError.js";
+import { NotificationService } from "../../notification/service/notification.service.js";
 
 export class AdminService {
   constructor() {
     this.bookingRepository = new BookingRepository();
     this.auditRepository = new AuditRepository();
+    this.notificationService = new NotificationService();
   }
 
   /**
@@ -75,6 +77,34 @@ export class AdminService {
 
       // 5. Commit the transaction (save everything permanently)
       await transaction.commit();
+
+      try {
+        // Fetch the user associated with this booking to get their email
+        const user = await existingBooking.getUser();
+
+        if (user && user.email) {
+          // Fire and forget (no 'await' so the Admin doesn't have to wait)
+          this.notificationService
+            .sendProvisionalHoldEmail(
+              user.email,
+              user.fullName,
+              existingBooking.id,
+              advanceAmountRequested,
+            )
+            .catch((err) =>
+              console.error(
+                "Email failed to send, but booking was approved:",
+                err,
+              ),
+            );
+        }
+      } catch (emailError) {
+        // Catch any unexpected errors fetching the user so it doesn't crash the success response
+        console.error(
+          "Failed to fetch user for email notification:",
+          emailError,
+        );
+      }
 
       return existingBooking;
     } catch (error) {
