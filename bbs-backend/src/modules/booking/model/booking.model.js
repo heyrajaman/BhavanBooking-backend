@@ -53,6 +53,10 @@ export default class Booking extends Model {
           allowNull: false,
           defaultValue: "PENDING_CLERK_REVIEW", // Form always goes to the Clerk first
         },
+        adminRemarks: {
+          type: DataTypes.TEXT,
+          allowNull: true,
+        },
         calculatedAmount: {
           type: DataTypes.DECIMAL(10, 2),
           allowNull: true, // The backend service will calculate this
