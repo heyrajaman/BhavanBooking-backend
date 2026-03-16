@@ -45,6 +45,8 @@ export default class Booking extends Model {
             "PENDING_ADMIN_APPROVAL",
             "PENDING_ADVANCE_PAYMENT",
             "CONFIRMED",
+            "CHECKED_IN",
+            "CHECKED_OUT",
             "REJECTED",
             "CANCELLED",
           ),

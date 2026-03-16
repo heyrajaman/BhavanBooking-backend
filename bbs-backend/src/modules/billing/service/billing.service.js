@@ -114,19 +114,34 @@ export class BillingService {
 
     // 1. Process Refund if applicable
     let refundDetails = null;
+    let approvalMessage = "Approved successfully."; // Base message
+
     if (invoice.finalRefundAmount > 0) {
       if (!booking.razorpayPaymentId) {
-        // Fallback: If for some reason we don't have the Razorpay ID, we mark it for manual refund
         invoice.adminRemarks =
           "Approved successfully. Manual refund required (No Payment ID found).";
       } else {
-        // Trigger the Razorpay Refund via PaymentService
-        const refundResponse = await this.paymentService.processRefund(
-          booking.razorpayPaymentId,
-          invoice.finalRefundAmount,
-        );
-        refundDetails = refundResponse.id; // Store Razorpay Refund ID
-        invoice.adminRemarks = `Approved successfully. Refund initiated (Refund ID: ${refundDetails}).`;
+        // 👇 ADDED TRY-CATCH BLOCK HERE 👇
+        try {
+          // Trigger the Razorpay Refund via PaymentService
+          const refundResponse = await this.paymentService.processRefund(
+            booking.razorpayPaymentId,
+            invoice.finalRefundAmount,
+          );
+          refundDetails = refundResponse.id;
+          approvalMessage += ` Automatic refund initiated (Refund ID: ${refundDetails}).`;
+          invoice.adminRemarks = approvalMessage;
+        } catch (error) {
+          // FALLBACK: If Razorpay fails (due to mock IDs), switch to Manual Mode
+          console.warn(
+            "⚠️ Auto-refund failed, switching to manual mode:",
+            error.message,
+          );
+          approvalMessage +=
+            " ⚠️ Auto-refund failed. MARKED FOR MANUAL REFUND.";
+          invoice.adminRemarks = `Manual refund of ₹${invoice.finalRefundAmount} required. (Reason: API Error/Mock ID)`;
+        }
+        // 👆 END TRY-CATCH BLOCK 👆
       }
     } else {
       invoice.adminRemarks = "Approved successfully. No refund due.";
@@ -135,14 +150,16 @@ export class BillingService {
     // 2. Save Invoice Status
     invoice.approvalStatus = "APPROVED";
     invoice.approvedBy = adminId;
+    // Fallback if adminRemarks wasn't set above
+    if (!invoice.adminRemarks) invoice.adminRemarks = approvalMessage;
     await invoice.save();
 
     // 3. Complete the Booking
-    booking.status = "COMPLETED";
+    booking.status = "CHECKED_OUT"; // Make sure this matches your DB ENUM!
     await booking.save();
 
     return {
-      message: "Invoice approved and checkout completed.",
+      message: approvalMessage,
       refundId: refundDetails,
       settlementReport: invoice,
     };
