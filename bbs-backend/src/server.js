@@ -1,6 +1,7 @@
 import "./config/env.js";
 import app from "./app.js"; // The Express app we built in Step 13
 import { connectDatabase } from "./config/database.js";
+import { initMinio } from "./config/minio.js";
 import { initBookingCronJobs } from "./modules/booking/workers/booking.cron.js"; // From Step 9
 
 const PORT = process.env.PORT || 3000;
@@ -15,6 +16,8 @@ process.on("uncaughtException", (err) => {
 const startServer = async () => {
   // 1. Connect to MySQL Database
   await connectDatabase();
+
+  await initMinio();
 
   // 2. Initialize Background Workers (like the 7-day hold cancellation)
   initBookingCronJobs();

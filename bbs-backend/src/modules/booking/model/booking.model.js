@@ -53,6 +53,14 @@ export default class Booking extends Model {
           allowNull: false,
           defaultValue: "PENDING_CLERK_REVIEW", // Form always goes to the Clerk first
         },
+        actualCheckInTime: {
+          type: DataTypes.DATE,
+          allowNull: true,
+        },
+        aadharImageUrl: {
+          type: DataTypes.STRING,
+          allowNull: true,
+        },
         calculatedAmount: {
           type: DataTypes.DECIMAL(10, 2),
           allowNull: true, // The backend service will calculate this

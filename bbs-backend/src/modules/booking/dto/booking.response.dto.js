@@ -10,6 +10,8 @@ export class BookingResponseDto {
     this.schedule = {
       startTime: bookingModel.startTime,
       endTime: bookingModel.endTime,
+      actualCheckInTime: bookingModel.actualCheckInTime || null,
+      actualCheckOutTime: bookingModel.actualCheckOutTime || null,
     };
 
     this.financials = {
@@ -17,6 +19,10 @@ export class BookingResponseDto {
       securityDeposit: bookingModel.securityDeposit,
       advanceAmountRequested: bookingModel.advanceAmountRequested,
       paymentStatus: bookingModel.paymentStatus,
+    };
+
+    this.verification = {
+      aadharImageUrl: bookingModel.aadharImageUrl || null,
     };
 
     if (bookingModel.user) {
@@ -68,6 +74,8 @@ export class BookingDetailResponseDto {
     this.schedule = {
       startTime: booking.startTime,
       endTime: booking.endTime,
+      actualCheckInTime: booking.actualCheckInTime || null,
+      actualCheckOutTime: booking.actualCheckOutTime || null,
     };
 
     this.financials = {
@@ -75,6 +83,10 @@ export class BookingDetailResponseDto {
       securityDeposit: booking.securityDeposit,
       advanceRequested: booking.advanceAmountRequested,
       paymentStatus: booking.paymentStatus,
+    };
+
+    this.verification = {
+      aadharImageUrl: booking.aadharImageUrl || null,
     };
 
     // 1. ADD CUSTOM DETAILS

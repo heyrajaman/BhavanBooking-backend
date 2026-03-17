@@ -174,12 +174,7 @@ const facilityData = [
     pricingDetails: {
       half_day: 25000,
       full_day: 40000,
-      included_facilities: [
-        "Dining Hall",
-        "Mini Hall (Capacity 75)",
-        "Kitchen",
-        "Parking",
-      ],
+      included_facilities: ["Dining Hall", "Kitchen", "Parking"],
     },
     securityDeposit: 25000.0,
   },

@@ -73,7 +73,7 @@ export class PaymentService {
   /**
    * 2. Verifies the Advance Payment and Confirms the Booking
    */
-  async verifyAdvancePayment(userId, paymentData) {
+  async verifyAdvancePayment(userId, paymentData, currentUser = null) {
     const {
       razorpay_order_id,
       razorpay_payment_id,
@@ -105,11 +105,15 @@ export class PaymentService {
     booking.status = "CONFIRMED";
     await booking.save();
 
-    if (user && user.email) {
+    if (currentUser && currentUser.email) {
       // We don't use 'await' here because we don't want the user to wait for the email
       // to send before getting their success response on the frontend!
       this.notificationService
-        .sendBookingConfirmationEmail(user.email, user.fullName, booking.id)
+        .sendBookingConfirmationEmail(
+          currentUser.email,
+          currentUser.fullName,
+          booking.id,
+        )
         .catch((err) =>
           console.error("Email failed, but booking confirmed:", err),
         );
