@@ -6,6 +6,7 @@ import { CreateBookingDto } from "../dto/booking.request.dto.js";
 import { catchAsync } from "../../../utils/catchAsync.js";
 import { protect, restrictTo } from "../../../middlewares/auth.middleware.js";
 import { UuidParamDto } from "../../../middlewares/common.dto.js";
+import { uploadImage } from "../../../middlewares/upload.middleware.js";
 
 const router = Router();
 const bookingController = new BookingController();
@@ -37,6 +38,25 @@ router.post(
   protect, // 1. Ensure the user is logged in
   validateDto(CreateBookingDto), // 2. Validate the incoming form payload
   catchAsync(bookingController.createBooking), // 3. Execute the controller logic
+);
+
+// PATCH /api/v1/bookings/:bookingId/check-in - Staff checks in a guest
+router.patch(
+  "/:bookingId/check-in",
+  protect,
+  restrictTo("CLERK", "ADMIN"),
+  validateDto(UuidParamDto, "params"),
+  uploadImage.single("aadharImage"),
+  catchAsync(bookingController.checkInBooking),
+);
+
+// PATCH /api/v1/bookings/:bookingId/check-out - Staff checks out a guest
+router.patch(
+  "/:bookingId/check-out",
+  protect,
+  restrictTo("CLERK", "ADMIN"),
+  validateDto(UuidParamDto, "params"),
+  catchAsync(bookingController.checkOutBooking),
 );
 
 // PATCH /api/v1/bookings/:bookingId/reject - Staff rejects a booking

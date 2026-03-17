@@ -1,6 +1,7 @@
 // src/modules/booking/controller/booking.controller.js
 import { BookingResponseDto } from "../dto/booking.response.dto.js";
 import { BookingService } from "../service/booking.service.js";
+import { uploadFileToMinio } from "../../../config/minio.js";
 
 export class BookingController {
   constructor() {
@@ -110,6 +111,56 @@ export class BookingController {
       message: "User booking history retrieved successfully.",
       count: formattedBookings.length,
       data: formattedBookings,
+    });
+  };
+
+  /**
+   * STAFF: Marks a confirmed booking as checked-in.
+   */
+  checkInBooking = async (req, res, next) => {
+    const { bookingId } = req.params;
+
+    // 1. Enforce that the image was actually provided
+    if (!req.file) {
+      return res.status(400).json({
+        success: false,
+        message: "An Aadhar image is strictly required to complete check-in.",
+      });
+    }
+
+    // 2. Upload the file to MinIO
+    const aadharFileName = await uploadFileToMinio(req.file);
+
+    // 3. Pass the generated filename to the service
+    const checkedInBooking = await this.bookingService.checkInBooking(
+      bookingId,
+      aadharFileName,
+    );
+
+    // Format response (Assuming BookingResponseDto handles the new fields)
+    const formattedBooking = new BookingResponseDto(checkedInBooking);
+
+    return res.status(200).json({
+      success: true,
+      message: "Guest successfully checked in. ID securely stored.",
+      data: formattedBooking,
+    });
+  };
+
+  /**
+   * STAFF: Marks a checked-in booking as checked-out.
+   */
+  checkOutBooking = async (req, res, next) => {
+    const { bookingId } = req.params;
+    const checkedOutBooking =
+      await this.bookingService.checkOutBooking(bookingId);
+
+    const formattedBooking = new BookingResponseDto(checkedOutBooking);
+
+    return res.status(200).json({
+      success: true,
+      message: "Guest has been successfully checked out.",
+      data: formattedBooking,
     });
   };
 

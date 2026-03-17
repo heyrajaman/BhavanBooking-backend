@@ -385,6 +385,55 @@ export class BookingService {
     return booking;
   }
 
+  // Update the method signature
+  async checkInBooking(bookingId, aadharFileName) {
+    const booking = await this.bookingRepository.findById(bookingId);
+
+    if (!booking) {
+      throw new AppError("Booking not found.", 404);
+    }
+
+    if (booking.status !== "CONFIRMED") {
+      throw new AppError(
+        `Cannot check-in. Booking is currently in ${booking.status} state. It must be CONFIRMED.`,
+        400,
+      );
+    }
+
+    // Update the booking record
+    booking.status = "CHECKED_IN";
+    booking.actualCheckInTime = new Date();
+    booking.aadharImageUrl = aadharFileName;
+
+    await booking.save();
+
+    return booking;
+  }
+
+  async checkOutBooking(bookingId) {
+    const booking = await this.bookingRepository.findById(bookingId);
+    if (!booking) throw new AppError("Booking not found.", 404);
+
+    // Enforce state machine rules
+    if (booking.status !== "CHECKED_IN") {
+      throw new AppError(
+        `Cannot check-out. Booking is currently in ${booking.status} state. It must be CHECKED_IN.`,
+        400,
+      );
+    }
+
+    booking.status = "CHECKED_OUT";
+    // If you add an actualCheckOutTime column to your model, update it here:
+    // booking.actualCheckOutTime = new Date();
+
+    await booking.save();
+
+    // NOTE: After checking out, you would typically trigger the BillingService
+    // to generate the final invoice for remaining payments.
+
+    return booking;
+  }
+
   _calculatePrice(facility, startTime, endTime) {
     const start = new Date(startTime);
     const end = new Date(endTime);
