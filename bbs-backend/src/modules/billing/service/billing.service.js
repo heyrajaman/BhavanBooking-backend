@@ -3,26 +3,50 @@ import Invoice from "../model/invoice.model.js";
 import Booking from "../../booking/model/booking.model.js";
 import { AppError } from "../../../utils/AppError.js";
 import { PaymentService } from "../../payment/service/payment.service.js";
+import User from "../../user/model/user.model.js"; // 👈 NEW: Import the User model
 
 export class BillingService {
   constructor() {
     this.paymentService = new PaymentService();
   }
+
+  // Helper function to generate a unique invoice number
+  _generateInvoiceNumber() {
+    const year = new Date().getFullYear();
+    const randomSuffix = Math.floor(10000 + Math.random() * 90000); // 5 digit random number
+    return `INV-${year}-${randomSuffix}`;
+  }
+
   /**
    * MAKER: Clerk drafts the invoice.
-   * Calculates deductions but does NOT finalize the checkout.
+   * Calculates deductions, taxes, and finalizes the financial snapshot.
    */
   async generateDraftInvoice(dto, clerkId) {
-    // 1. Fetch the booking to get the Security Deposit
+    // 1. Fetch the Booking AND the associated Customer User in one go
     const booking = await Booking.findByPk(dto.bookingId);
     if (!booking) {
       throw new AppError("Booking not found", 404);
     }
 
-    // Ensure an invoice hasn't already been drafted or approved
+    if (booking.status !== "CHECKED_IN") {
+      throw new AppError(
+        `Cannot generate an invoice for a booking with status: ${booking.status}. The user must be CHECKED_IN.`,
+        400,
+      );
+    }
+
+    const customer = await User.findByPk(booking.userId);
+    if (!customer) {
+      throw new AppError(
+        "Customer associated with this booking not found",
+        404,
+      );
+    }
+
     const existingInvoice = await Invoice.findOne({
       where: { bookingId: dto.bookingId },
     });
+
     if (existingInvoice && existingInvoice.approvalStatus !== "REJECTED") {
       throw new AppError(
         "An active invoice already exists for this booking",
@@ -30,27 +54,50 @@ export class BillingService {
       );
     }
 
+    // 2. Extract Trusted Data straight from the DB
     const securityDeposit = parseFloat(booking.securityDeposit || 0);
+    const baseAmount = parseFloat(booking.calculatedAmount || 0);
+    const userId = customer.id;
+    // Note: Adjust 'fullName', 'email', 'phone' below if your User model uses slightly different column names (like firstName)
+    const customerName = customer.fullName;
+    const customerEmail = customer.email;
+    const customerPhone = customer.mobile;
 
-    // 2. Business Rules Calculations (Your FRS logic)
-    const electricityCharges = dto.electricityUnitsConsumed * 14; // ₹14 per unit
-    const cleaningCharges = dto.cleaningCharges;
-    const generatorCharges = dto.generatorCharges;
+    // --- 3. Base Pricing & Additional Items ---
+    const discountAmount = parseFloat(dto.discountAmount || 0);
+    const additionalItems = dto.additionalItems || [];
 
-    // Tally up Penalties
+    const totalAdditionalAmount = additionalItems.reduce(
+      (sum, item) => sum + parseFloat(item.amount),
+      0,
+    );
+
+    // --- 4. Auto-Calculate Taxes ---
+    const taxableAmount = Math.max(
+      0,
+      baseAmount + totalAdditionalAmount - discountAmount,
+    );
+    const cgstAmount = parseFloat((taxableAmount * 0.025).toFixed(2));
+    const sgstAmount = parseFloat((taxableAmount * 0.025).toFixed(2));
+    const totalAmount = taxableAmount + cgstAmount + sgstAmount;
+
+    // --- 5. Post-Event Deduction Calculations ---
+    const electricityCharges = (dto.electricityUnitsConsumed || 0) * 14;
+    const cleaningCharges = parseFloat(dto.cleaningCharges || 0);
+    const generatorCharges = parseFloat(dto.generatorCharges || 0);
+
     let totalPenalties = 0;
     if (dto.damagesAndPenalties && dto.damagesAndPenalties.length > 0) {
       totalPenalties = dto.damagesAndPenalties.reduce(
-        (sum, item) => sum + item.amount,
+        (sum, item) => sum + parseFloat(item.amount),
         0,
       );
     }
 
-    // Total Deductions
     const totalDeductions =
       electricityCharges + cleaningCharges + generatorCharges + totalPenalties;
 
-    // 3. Calculate Final Refund / Balance Due
+    // --- 6. Final Refund / Balance Math ---
     let finalRefundAmount = securityDeposit - totalDeductions;
     let additionalBalanceDue = 0;
 
@@ -59,7 +106,26 @@ export class BillingService {
       finalRefundAmount = 0;
     }
 
+    // --- 7. Save or Update ---
     if (existingInvoice) {
+      // Use the trusted DB values instead of DTO
+      existingInvoice.userId = userId;
+      existingInvoice.customerName = customerName;
+      existingInvoice.customerEmail = customerEmail;
+      existingInvoice.customerPhone = customerPhone;
+
+      existingInvoice.billingAddress = dto.billingAddress;
+      existingInvoice.dueDate = dto.dueDate;
+
+      existingInvoice.baseAmount = baseAmount;
+      existingInvoice.additionalItems = additionalItems;
+      existingInvoice.totalAdditionalAmount = totalAdditionalAmount;
+      existingInvoice.discountAmount = discountAmount;
+
+      existingInvoice.cgstAmount = cgstAmount;
+      existingInvoice.sgstAmount = sgstAmount;
+      existingInvoice.totalAmount = totalAmount;
+
       existingInvoice.electricityUnitsConsumed = dto.electricityUnitsConsumed;
       existingInvoice.electricityCharges = electricityCharges;
       existingInvoice.cleaningCharges = cleaningCharges;
@@ -70,7 +136,6 @@ export class BillingService {
       existingInvoice.finalRefundAmount = finalRefundAmount;
       existingInvoice.additionalBalanceDue = additionalBalanceDue;
 
-      // Reset the status back to pending and clear the old rejection note!
       existingInvoice.approvalStatus = "PENDING_ADMIN_APPROVAL";
       existingInvoice.generatedBy = clerkId;
       existingInvoice.adminRemarks = null;
@@ -79,20 +144,42 @@ export class BillingService {
       return existingInvoice;
     }
 
-    // 4. Save the Draft Invoice (Status defaults to PENDING_ADMIN_APPROVAL)
+    const invoiceNumber = this._generateInvoiceNumber();
+
     const draftInvoice = await Invoice.create({
+      invoiceNumber,
       bookingId: dto.bookingId,
-      generatedBy: clerkId, // Clerk who made it
+      userId: userId, // 👈 DB value
+      generatedBy: clerkId,
+
+      customerName: customerName, // 👈 DB value
+      customerEmail: customerEmail, // 👈 DB value
+      customerPhone: customerPhone, // 👈 DB value
+
+      billingAddress: dto.billingAddress,
+      dueDate: dto.dueDate,
+
+      baseAmount,
+      additionalItems,
+      totalAdditionalAmount,
+      discountAmount,
+
+      cgstAmount,
+      sgstAmount,
+      totalAmount,
+
       electricityUnitsConsumed: dto.electricityUnitsConsumed,
       electricityCharges,
       cleaningCharges,
       generatorCharges,
       damagesAndPenalties: dto.damagesAndPenalties,
       totalDeductions,
-      securityDepositHeld: securityDeposit,
+      securityDepositHeld: securityDeposit, // 👈 DB value
       finalRefundAmount,
       additionalBalanceDue,
+
       approvalStatus: "PENDING_ADMIN_APPROVAL",
+      paymentStatus: "PENDING",
     });
 
     return draftInvoice;
@@ -141,7 +228,6 @@ export class BillingService {
         invoice.adminRemarks =
           "Approved successfully. Manual refund required (No Payment ID found).";
       } else {
-        // 👇 ADDED TRY-CATCH BLOCK HERE 👇
         try {
           // Trigger the Razorpay Refund via PaymentService
           const refundResponse = await this.paymentService.processRefund(
@@ -152,7 +238,6 @@ export class BillingService {
           approvalMessage += ` Automatic refund initiated (Refund ID: ${refundDetails}).`;
           invoice.adminRemarks = approvalMessage;
         } catch (error) {
-          // FALLBACK: If Razorpay fails (due to mock IDs), switch to Manual Mode
           console.warn(
             "⚠️ Auto-refund failed, switching to manual mode:",
             error.message,
@@ -161,7 +246,6 @@ export class BillingService {
             " ⚠️ Auto-refund failed. MARKED FOR MANUAL REFUND.";
           invoice.adminRemarks = `Manual refund of ₹${invoice.finalRefundAmount} required. (Reason: API Error/Mock ID)`;
         }
-        // 👆 END TRY-CATCH BLOCK 👆
       }
     } else {
       invoice.adminRemarks = "Approved successfully. No refund due.";
@@ -170,12 +254,17 @@ export class BillingService {
     // 2. Save Invoice Status
     invoice.approvalStatus = "APPROVED";
     invoice.approvedBy = adminId;
-    // Fallback if adminRemarks wasn't set above
+
+    // If no additional balance is due, we can mark payment as finalized/paid based on your business logic
+    if (invoice.additionalBalanceDue === 0 && invoice.totalAmount > 0) {
+      invoice.paymentStatus = "PAID";
+    }
+
     if (!invoice.adminRemarks) invoice.adminRemarks = approvalMessage;
     await invoice.save();
 
     // 3. Complete the Booking
-    booking.status = "CHECKED_OUT"; // Make sure this matches your DB ENUM!
+    booking.status = "CHECKED_OUT";
     await booking.save();
 
     return {

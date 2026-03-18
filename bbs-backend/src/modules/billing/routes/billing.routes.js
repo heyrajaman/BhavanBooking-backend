@@ -1,6 +1,12 @@
 // src/modules/billing/routes/billing.routes.js
 import { Router } from "express";
-import { BillingController } from "../controller/billing.controller.js";
+
+// Import the individual controller functions directly
+import {
+  generateDraftInvoice,
+  getInvoice,
+  processAdminApproval,
+} from "../controller/billing.controller.js";
 
 // Middlewares
 import { validateDto } from "../../../middlewares/validate.js";
@@ -8,28 +14,33 @@ import {
   protectRoute,
   restrictTo,
 } from "../../../middlewares/auth.middleware.js";
-import { catchAsync } from "../../../utils/catchAsync.js";
 
-// DTOs
-import { GenerateInvoiceDto, ApproveInvoiceDto } from "../dto/invoice.dto.js";
+// Import the exact DTOs we created in Step 2
+import {
+  generateInvoiceDto,
+  updateInvoiceStatusDto,
+} from "../dto/invoice.dto.js";
+
+// Assuming you still have this for checking URL params
 import { UuidParamDto } from "../../../middlewares/common.dto.js";
-// (Assuming you still have CheckInRequestDto for the check-in route)
-// import { CheckInRequestDto } from "../dto/checkin.request.dto.js";
 
 const router = Router();
-const billingController = new BillingController();
+
 /**
  * ==========================================
  * BILLING API ROUTES (/api/v1/billing)
  * ==========================================
  */
+
 // 1. MAKER: Generate Draft Invoice (Clerks & Admins)
+// Changed route from "/:bookingId/draft-invoice" to "/draft-invoice"
+// because bookingId is now strictly validated in the req.body via generateInvoiceDto
 router.post(
-  "/:bookingId/draft-invoice",
+  "/draft-invoice",
   protectRoute,
-  restrictTo("CLERK", "ADMIN"), // Clerks can draft it
-  validateDto(GenerateInvoiceDto),
-  catchAsync(billingController.generateDraftInvoice),
+  restrictTo("CLERK", "ADMIN"),
+  validateDto(generateInvoiceDto), // Validates req.body
+  generateDraftInvoice, // Already wrapped in catchAsync in the controller
 );
 
 // GET: Fetch invoice by Booking ID
@@ -37,8 +48,8 @@ router.get(
   "/:bookingId/invoice",
   protectRoute,
   restrictTo("CLERK", "ADMIN"),
-  validateDto(UuidParamDto, "params"), // Uses the Uuid param validator we made
-  catchAsync(billingController.getInvoice),
+  // You might need to ensure UuidParamDto looks for 'bookingId' if it was generically written
+  getInvoice,
 );
 
 // 2. CHECKER: Approve or Reject Invoice (Strictly Admins)
@@ -46,8 +57,8 @@ router.patch(
   "/invoice/:invoiceId/approve",
   protectRoute,
   restrictTo("ADMIN"), // ONLY Admins can approve
-  validateDto(ApproveInvoiceDto),
-  catchAsync(billingController.processAdminApproval),
+  validateDto(updateInvoiceStatusDto), // Validates req.body (status and remarks)
+  processAdminApproval,
 );
 
 export default router;

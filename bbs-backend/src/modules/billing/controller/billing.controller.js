@@ -1,62 +1,56 @@
 // src/modules/billing/controller/billing.controller.js
 import { BillingService } from "../service/billing.service.js";
+import { catchAsync } from "../../../utils/catchAsync.js";
 
-export class BillingController {
-  constructor() {
-    this.billingService = new BillingService();
-  }
+const billingService = new BillingService();
 
-  /**
-   * MAKER: Clerk drafts the invoice for a booking
-   */
-  generateDraftInvoice = async (req, res) => {
-    const dto = req.body;
-    dto.bookingId = req.params.bookingId;
+export const generateDraftInvoice = catchAsync(async (req, res) => {
+  // req.user.id is extracted from your authentication middleware
+  const clerkId = req.user.id;
 
-    // Assuming your `protectRoute` middleware attaches the logged-in user to `req.user`
-    const clerkId = req.user.id;
+  // Pass the DTO-validated body and the clerk's ID to the service
+  const invoice = await billingService.generateDraftInvoice(req.body, clerkId);
 
-    const draftInvoice = await this.billingService.generateDraftInvoice(
-      dto,
-      clerkId,
-    );
+  res.status(201).json({
+    status: "success",
+    message: "Invoice generated successfully",
+    data: {
+      invoice,
+    },
+  });
+});
 
-    return res.status(201).json({
-      success: true,
-      message:
-        "Draft invoice generated successfully and is pending Admin approval.",
-      data: draftInvoice,
-    });
-  };
+export const getInvoice = catchAsync(async (req, res) => {
+  const { bookingId } = req.params;
 
-  getInvoice = async (req, res) => {
-    const { bookingId } = req.params;
-    const invoice = await this.billingService.getInvoiceByBookingId(bookingId);
+  // Fetch the fully populated invoice
+  const invoice = await billingService.getInvoiceByBookingId(bookingId);
 
-    return res.status(200).json({
-      success: true,
-      data: invoice,
-    });
-  };
+  res.status(200).json({
+    status: "success",
+    data: {
+      invoice,
+    },
+  });
+});
 
-  /**
-   * CHECKER: Admin approves or rejects the drafted invoice
-   */
-  processAdminApproval = async (req, res) => {
-    const { invoiceId } = req.params;
-    const dto = req.body;
-    const adminId = req.user.id;
+export const processAdminApproval = catchAsync(async (req, res) => {
+  const { invoiceId } = req.params;
+  const adminId = req.user.id;
 
-    const result = await this.billingService.processAdminApproval(
-      invoiceId,
-      dto,
-      adminId,
-    );
+  // Process the approval/rejection and potential refunds
+  const result = await billingService.processAdminApproval(
+    invoiceId,
+    req.body,
+    adminId,
+  );
 
-    return res.status(200).json({
-      success: true,
-      message: result.message,
-      data: result.settlementReport || result.invoice,
-    });
-  };
-}
+  res.status(200).json({
+    status: "success",
+    message: result.message,
+    data: {
+      refundId: result.refundId,
+      settlementReport: result.settlementReport,
+    },
+  });
+});
