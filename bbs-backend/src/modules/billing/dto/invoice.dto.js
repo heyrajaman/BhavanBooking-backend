@@ -1,26 +1,30 @@
 // src/modules/billing/dto/invoice.dto.js
 import Joi from "joi";
 
-/**
- * DTO for Clerk generating the preliminary invoice
- */
-export const GenerateInvoiceDto = Joi.object({
-  electricityUnitsConsumed: Joi.number().integer().min(0).required().messages({
-    "number.base": "Electricity units must be a number",
-    "number.min": "Electricity units cannot be negative",
-  }),
+export const generateInvoiceDto = Joi.object({
+  bookingId: Joi.string().uuid().required(),
 
-  cleaningCharges: Joi.number().min(0).required().messages({
-    "number.base": "Cleaning charges must be a number",
-    "number.min": "Cleaning charges cannot be negative",
-    "any.required": "Cleaning charges are required",
-  }),
+  billingAddress: Joi.string().max(500).allow(null, ""),
+  dueDate: Joi.date().iso().min("now").required(),
 
-  generatorCharges: Joi.number().min(0).required().messages({
-    "number.base": "Generator charges must be a number",
-    "number.min": "Generator charges cannot be negative",
-    "any.required": "Generator charges are required",
-  }),
+  // baseAmount is GONE!
+  discountAmount: Joi.number().min(0).default(0),
+
+  additionalItems: Joi.array()
+    .items(
+      Joi.object({
+        name: Joi.string().required(),
+        amount: Joi.number().min(1).required(),
+      }),
+    )
+    .optional()
+    .default([]),
+
+  electricityUnitsConsumed: Joi.number().integer().min(0).default(0),
+  electricityCharges: Joi.number().min(0).default(0),
+  cleaningCharges: Joi.number().min(0).default(0),
+  generatorCharges: Joi.number().min(0).default(0),
+
   damagesAndPenalties: Joi.array()
     .items(
       Joi.object({
@@ -30,23 +34,17 @@ export const GenerateInvoiceDto = Joi.object({
     )
     .optional()
     .default([]),
-  // Note: The actual calculation of charges (units * rate) and
-  // cleaning/generator fees will be securely handled by the backend Service,
-  // so we don't trust the client to send those amounts directly!
 });
 
-/**
- * DTO for Admin approving or rejecting the invoice
- */
-export const ApproveInvoiceDto = Joi.object({
-  status: Joi.string().valid("APPROVED", "REJECTED").required().messages({
-    "any.only": "Status must be either APPROVED or REJECTED",
-  }),
-  adminRemarks: Joi.string().when("status", {
+export const updateInvoiceStatusDto = Joi.object({
+  approvalStatus: Joi.string()
+    .valid("PENDING_ADMIN_APPROVAL", "APPROVED", "REJECTED")
+    .optional(),
+  adminRemarks: Joi.string().allow(null, "").when("approvalStatus", {
     is: "REJECTED",
-    then: Joi.required().messages({
-      "any.required": "Admin remarks are required when rejecting an invoice",
-    }),
-    otherwise: Joi.optional().allow(""),
+    then: Joi.required(),
   }),
+  paymentStatus: Joi.string()
+    .valid("PENDING", "PAID", "PARTIALLY_PAID", "CANCELLED", "REFUNDED")
+    .optional(),
 });

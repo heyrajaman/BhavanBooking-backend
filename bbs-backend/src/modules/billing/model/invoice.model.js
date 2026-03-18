@@ -10,8 +10,17 @@ export default class Invoice extends Model {
           defaultValue: DataTypes.UUIDV4,
           primaryKey: true,
         },
+        invoiceNumber: {
+          type: DataTypes.STRING,
+          unique: true,
+          allowNull: false, // e.g., 'INV-2026-0001'
+        },
         bookingId: {
           type: DataTypes.UUID,
+          allowNull: false,
+        },
+        userId: {
+          type: DataTypes.UUID, // The customer being billed
           allowNull: false,
         },
         generatedBy: {
@@ -22,6 +31,74 @@ export default class Invoice extends Model {
           type: DataTypes.UUID, // The Admin who approves it
           allowNull: true,
         },
+
+        // --- Customer Snapshot (Immutable for historical invoice accuracy) ---
+        customerName: {
+          type: DataTypes.STRING,
+          allowNull: false,
+        },
+        customerEmail: {
+          type: DataTypes.STRING,
+          allowNull: true,
+        },
+        customerPhone: {
+          type: DataTypes.STRING,
+          allowNull: true,
+        },
+        billingAddress: {
+          type: DataTypes.TEXT,
+          allowNull: true,
+        },
+
+        // --- Dates ---
+        invoiceDate: {
+          type: DataTypes.DATE,
+          allowNull: false,
+          defaultValue: DataTypes.NOW,
+        },
+        dueDate: {
+          type: DataTypes.DATE,
+          allowNull: false,
+        },
+
+        // --- Base Pricing & Taxes ---
+        baseAmount: {
+          type: DataTypes.DECIMAL(10, 2),
+          allowNull: false,
+          defaultValue: 0.0,
+        },
+        additionalItems: {
+          type: DataTypes.JSON,
+          allowNull: true,
+        },
+        totalAdditionalAmount: {
+          type: DataTypes.DECIMAL(10, 2),
+          allowNull: false,
+          defaultValue: 0.0,
+        },
+        cgstAmount: {
+          type: DataTypes.DECIMAL(10, 2),
+          allowNull: false,
+          defaultValue: 0.0,
+        },
+        sgstAmount: {
+          type: DataTypes.DECIMAL(10, 2),
+          allowNull: false,
+          defaultValue: 0.0,
+        },
+        discountAmount: {
+          type: DataTypes.DECIMAL(10, 2),
+          allowNull: false,
+          defaultValue: 0.0,
+        },
+        totalAmount: {
+          // Grand total including base + taxes - discount
+          type: DataTypes.DECIMAL(10, 2),
+          allowNull: false,
+          defaultValue: 0.0,
+        },
+
+        // --- Post-Event Settlement Charges ---
         electricityUnitsConsumed: {
           type: DataTypes.INTEGER,
           allowNull: false,
@@ -54,6 +131,7 @@ export default class Invoice extends Model {
         securityDepositHeld: {
           type: DataTypes.DECIMAL(10, 2),
           allowNull: false,
+          defaultValue: 0.0,
         },
         finalRefundAmount: {
           type: DataTypes.DECIMAL(10, 2),
@@ -64,6 +142,18 @@ export default class Invoice extends Model {
           type: DataTypes.DECIMAL(10, 2),
           allowNull: false,
           defaultValue: 0.0,
+        },
+
+        // --- Statuses ---
+        paymentStatus: {
+          type: DataTypes.ENUM(
+            "PENDING",
+            "PAID",
+            "PARTIALLY_PAID",
+            "CANCELLED",
+            "REFUNDED",
+          ),
+          defaultValue: "PENDING",
         },
         approvalStatus: {
           type: DataTypes.ENUM(
@@ -92,7 +182,18 @@ export default class Invoice extends Model {
       foreignKey: "bookingId",
       as: "booking",
     });
-    Invoice.belongsTo(models.User, { foreignKey: "generatedBy", as: "clerk" });
-    Invoice.belongsTo(models.User, { foreignKey: "approvedBy", as: "admin" });
+    // Added association to easily fetch the billed customer
+    Invoice.belongsTo(models.User, {
+      foreignKey: "userId",
+      as: "customer",
+    });
+    Invoice.belongsTo(models.User, {
+      foreignKey: "generatedBy",
+      as: "clerk",
+    });
+    Invoice.belongsTo(models.User, {
+      foreignKey: "approvedBy",
+      as: "admin",
+    });
   }
 }
