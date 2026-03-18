@@ -8,9 +8,6 @@ export class FacilityService {
     this.bookingRepository = new BookingRepository();
   }
 
-  async getAllFacilities() {
-    return await this.facilityRepository.findAll();
-  }
 
   /**
    * Create a new facility (Package or Custom)
