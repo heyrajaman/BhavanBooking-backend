@@ -18,13 +18,11 @@ import { UuidParamDto } from "../../../middlewares/common.dto.js";
 
 const router = Router();
 const billingController = new BillingController();
-
 /**
  * ==========================================
  * BILLING API ROUTES (/api/v1/billing)
  * ==========================================
  */
-
 // 1. MAKER: Generate Draft Invoice (Clerks & Admins)
 router.post(
   "/:bookingId/draft-invoice",

@@ -6,24 +6,25 @@ export class FacilityController {
     this.facilityService = new FacilityService();
   }
 
-  /**
-   * Fetch all available facilities and packages
-   */
-  getAllFacilities = async (req, res, next) => {
-    try {
-      const facilities = await this.facilityService.getAllFacilities();
 
-      return res.status(200).json({
-        success: true,
-        message: "Facilities retrieved successfully",
-        data: facilities,
-      });
-    } catch (error) {
-      next(error);
-    }
+
+
+getAllFacilities = async (req, res, next) => {
+    // Extract dates from query parameters (if provided)
+    const { startDate, endDate } = req.query;
+    
+    // Pass dates to service
+    const facilities = await this.facilityService.getAllFacilities(startDate, endDate);
+
+    return res.status(200).json({
+      success: true,
+      message: "Facilities retrieved successfully",
+      data: facilities,
+    });
   };
 
-  /**
+
+    /**
    * Create a new facility or package (Admin Only)
    */
   createFacility = async (req, res, next) => {
@@ -67,3 +68,5 @@ export class FacilityController {
     }
   };
 }
+  
+

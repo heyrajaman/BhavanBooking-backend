@@ -2,7 +2,7 @@
 import { BookingResponseDto } from "../dto/booking.response.dto.js";
 import { BookingService } from "../service/booking.service.js";
 import { uploadFileToMinio } from "../../../config/minio.js";
-
+import Booking from "../model/booking.model.js";
 export class BookingController {
   constructor() {
     this.bookingService = new BookingService();
@@ -119,6 +119,26 @@ export class BookingController {
    */
   checkInBooking = async (req, res, next) => {
     const { bookingId } = req.params;
+
+const booking = await Booking.findByPk(bookingId);
+      
+      if (!booking) {
+        return res.status(404).json({ success: false, message: "Booking not found." });
+      }
+
+      if (booking.status !== "CONFIRMED") {
+        return res.status(400).json({ 
+          success: false, 
+          message: "Only confirmed bookings can be checked in." 
+        });
+      }
+
+      if (booking.paymentStatus !== "COMPLETED") {
+        return res.status(400).json({ 
+          success: false, 
+          message: "Guest cannot be checked in! They must pay the remaining balance first." 
+        });
+      }
 
     // 1. Enforce that the image was actually provided
     if (!req.file) {
