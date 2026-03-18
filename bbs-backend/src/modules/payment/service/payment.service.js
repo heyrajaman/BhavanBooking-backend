@@ -105,19 +105,23 @@ export class PaymentService {
     booking.status = "CONFIRMED";
     await booking.save();
 
-    if (currentUser && currentUser.email) {
-      // We don't use 'await' here because we don't want the user to wait for the email
-      // to send before getting their success response on the frontend!
-      this.notificationService
-        .sendBookingConfirmationEmail(
-          currentUser.email,
-          currentUser.fullName,
-          booking.id,
-        )
-        .catch((err) =>
-          console.error("Email failed, but booking confirmed:", err),
-        );
+    try {
+      // We must fetch the user from the booking to get their email!
+      const user = await booking.getUser();
+
+      if (user && user.email) {
+        // We don't use 'await' here because we don't want the user to wait for the email
+        // to send before getting their success response on the frontend!
+        this.notificationService
+          .sendBookingConfirmationEmail(user.email, user.fullName, booking.id)
+          .catch((err) =>
+            console.error("Email failed, but booking confirmed:", err),
+          );
+      }
+    } catch (err) {
+      console.error("Failed to fetch user for confirmation email", err);
     }
+    // --- BUG FIX ENDS HERE ---
 
     return booking;
   }

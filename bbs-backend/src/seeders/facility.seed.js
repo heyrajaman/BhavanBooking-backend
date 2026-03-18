@@ -167,7 +167,9 @@ const facilityData = [
   {
     name: "Dining Hall + Kitchen + Parking (for 75 persons)",
     description:
-      "Half Day (8:00 AM – 4:00 PM OR 4:00 PM – 11:00 PM) or Full Day.",
+     `Half Day (8:00 AM – 4:00 PM OR 4:00 PM – 11:00 PM) or Full Day.
+      Half day = ₹25000 
+      Full day = ₹40000`,
     facilityType: "PACKAGE",
     pricingType: "SLOT",
     baseRate: 25000.0,
