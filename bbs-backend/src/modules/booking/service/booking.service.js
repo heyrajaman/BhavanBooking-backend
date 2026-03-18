@@ -441,7 +441,8 @@ export class BookingService {
     const durationDays = Math.ceil(durationHours / 24) || 1; // Ensure at least 1 day
 
     const details = facility.pricingDetails;
-    let total = Number(facility.baseRate);
+    let baseRate = Number(facility.baseRate);
+    let total = baseRate;
 
     switch (facility.pricingType) {
       case "TIERED":
@@ -452,28 +453,41 @@ export class BookingService {
         else if (details && durationDays >= 3 && details["3_days"]) {
           total =
             details["3_days"] + (durationDays - 3) * Number(facility.baseRate);
+        } else {
+          total = durationDays * baseRate;
         }
         break;
       case "HOURLY":
         if (details && details.base_hours && details.extra_hour_rate) {
           if (durationHours > details.base_hours) {
             const extraHours = Math.ceil(durationHours - details.base_hours);
-            total += extraHours * details.extra_hour_rate;
+            total =
+              Number(total) + extraHours * Number(details.extra_hour_rate);
           }
         } else {
-          total = durationHours * total;
+          total = Math.ceil(durationHours) * baseRate;
         }
         break;
       case "SLOT":
         if (details && details.half_day && details.full_day) {
-          total = durationHours <= 8 ? details.half_day : details.full_day;
+          // If it's more than 24 hours, treat it as multiple full days
+          if (durationDays > 1) {
+            total = durationDays * details.full_day;
+          } else {
+            total = durationHours <= 8 ? details.half_day : details.full_day;
+          }
         } else if (details && details.duration_hours) {
-          total = Math.ceil(durationHours / details.duration_hours) * total;
+          total = Math.ceil(durationHours / details.duration_hours) * baseRate;
         }
         break;
       case "FIXED":
+        total = durationDays * baseRate;
+        break;
       case "PER_ITEM":
+        total = baseRate;
+        break;
       default:
+        total = durationDays * baseRate;
         break;
     }
 
