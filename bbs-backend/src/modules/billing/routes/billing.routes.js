@@ -6,6 +6,7 @@ import {
   generateDraftInvoice,
   getInvoice,
   processAdminApproval,
+  uploadInvoicePdf,
 } from "../controller/billing.controller.js";
 
 // Middlewares
@@ -22,7 +23,7 @@ import {
 } from "../dto/invoice.dto.js";
 
 // Assuming you still have this for checking URL params
-import { UuidParamDto } from "../../../middlewares/common.dto.js";
+import { uploadPdf } from "../../../middlewares/upload.middleware.js";
 
 const router = Router();
 
@@ -59,6 +60,14 @@ router.patch(
   restrictTo("ADMIN"), // ONLY Admins can approve
   validateDto(updateInvoiceStatusDto), // Validates req.body (status and remarks)
   processAdminApproval,
+);
+
+router.patch(
+  "/:invoiceId/upload-pdf",
+  protectRoute,
+  restrictTo("ADMIN", "CLERK"),
+  uploadPdf.single("invoicePdf"),
+  uploadInvoicePdf,
 );
 
 export default router;
