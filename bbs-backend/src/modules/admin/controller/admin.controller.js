@@ -3,11 +3,40 @@ import {
   BookingResponseDto,
 } from "../../booking/dto/booking.response.dto.js";
 import { AdminService } from "../service/admin.service.js";
+import minioClient from "../../../config/minio.js";
+import User from "../../user/model/user.model.js";
+import { AppError } from "../../../utils/AppError.js";
 
 export class AdminController {
   constructor() {
     this.adminService = new AdminService();
   }
+
+  // Add this method inside your AdminController class
+
+  uploadSignature = async (req, res, next) => {
+    // 1. Check if Multer caught the file
+    if (!req.file) {
+      throw new AppError("Please upload a signature image file.", 400);
+    }
+
+    const adminId = req.user.id;
+
+    // 2. Pass the ID and the file to the Service
+    const signatureUrl = await this.adminService.uploadAdminSignature(
+      adminId,
+      req.file,
+    );
+
+    // 3. Send the response back to the frontend
+    res.status(200).json({
+      status: "success",
+      message: "Admin signature uploaded successfully.",
+      data: {
+        signatureUrl: signatureUrl,
+      },
+    });
+  };
 
   /**
    * Handles the request for an Admin to approve a booking and set the advance amount

@@ -6,6 +6,7 @@ import { validateDto } from "../../../middlewares/validate.js";
 import { AdminLoginDto, CreateClerkDto } from "../dto/admin.auth.dto.js";
 import { catchAsync } from "../../../utils/catchAsync.js";
 import { protect, restrictTo } from "../../../middlewares/auth.middleware.js";
+import { uploadImage } from "../../../middlewares/upload.middleware.js";
 
 const router = Router();
 const adminAuthController = new AdminAuthController();
@@ -23,6 +24,14 @@ router.post(
   "/clerk/login",
   validateDto(AdminLoginDto),
   catchAsync(adminAuthController.clerkLogin),
+);
+
+router.patch(
+  "/upload-signature",
+  protect,
+  restrictTo("ADMIN"),
+  uploadImage.single("signature"), // "signature" is the key your frontend will use in the form-data
+  catchAsync(adminController.uploadSignature),
 );
 
 // POST /api/v1/auth/admin/create-clerk (Protected & Restricted)

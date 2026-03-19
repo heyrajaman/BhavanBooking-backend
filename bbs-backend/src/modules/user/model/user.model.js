@@ -33,6 +33,10 @@ export default class User extends Model {
           allowNull: false,
           defaultValue: "USER",
         },
+        signatureUrl: {
+          type: DataTypes.STRING,
+          allowNull: true, // Will be prompted to upload if null for ADMIN
+        },
         aadhaarNumber: {
           type: DataTypes.STRING(12),
           allowNull: true, // Optional during user signup, can be filled later

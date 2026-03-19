@@ -1,6 +1,7 @@
 // src/modules/billing/controller/billing.controller.js
 import { BillingService } from "../service/billing.service.js";
 import { catchAsync } from "../../../utils/catchAsync.js";
+import { AppError } from "../../../utils/AppError.js";
 
 const billingService = new BillingService();
 
@@ -51,6 +52,24 @@ export const processAdminApproval = catchAsync(async (req, res) => {
     data: {
       refundId: result.refundId,
       settlementReport: result.settlementReport,
+    },
+  });
+});
+
+export const uploadInvoicePdf = catchAsync(async (req, res) => {
+  if (!req.file) {
+    throw new AppError("Please upload a valid PDF document.", 400);
+  }
+
+  const { invoiceId } = req.params;
+
+  const pdfUrl = await billingService.uploadInvoicePdf(invoiceId, req.file);
+
+  res.status(200).json({
+    status: "success",
+    message: "Invoice PDF uploaded and saved successfully.",
+    data: {
+      invoicePdfUrl: pdfUrl,
     },
   });
 });

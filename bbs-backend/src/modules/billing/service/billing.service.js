@@ -3,7 +3,8 @@ import Invoice from "../model/invoice.model.js";
 import Booking from "../../booking/model/booking.model.js";
 import { AppError } from "../../../utils/AppError.js";
 import { PaymentService } from "../../payment/service/payment.service.js";
-import User from "../../user/model/user.model.js"; // 👈 NEW: Import the User model
+import User from "../../user/model/user.model.js";
+import minioClient from "../../../config/minio.js";
 
 export class BillingService {
   constructor() {
@@ -207,6 +208,9 @@ export class BillingService {
     const booking = await Booking.findByPk(invoice.bookingId);
     if (!booking) throw new AppError("Associated booking not found", 404);
 
+    const admin = await User.findByPk(adminId);
+    if (!admin) throw new AppError("Admin not found", 404);
+
     // If Admin Rejects
     if (dto.status === "REJECTED") {
       invoice.approvalStatus = "REJECTED";
@@ -218,6 +222,13 @@ export class BillingService {
     }
 
     // --- IF ADMIN APPROVES ---
+
+    if (!admin.signatureUrl) {
+      throw new AppError(
+        "Signature missing. Please upload your digital signature in your profile before approving invoices.",
+        400,
+      );
+    }
 
     // 1. Process Refund if applicable
     let refundDetails = null;
@@ -254,6 +265,7 @@ export class BillingService {
     // 2. Save Invoice Status
     invoice.approvalStatus = "APPROVED";
     invoice.approvedBy = adminId;
+    invoice.adminSignatureUrl = admin.signatureUrl;
 
     // If no additional balance is due, we can mark payment as finalized/paid based on your business logic
     if (invoice.additionalBalanceDue === 0 && invoice.totalAmount > 0) {
@@ -272,5 +284,41 @@ export class BillingService {
       refundId: refundDetails,
       settlementReport: invoice,
     };
+  }
+
+  /**
+   * Uploads a generated Invoice PDF to MinIO and attaches the URL to the invoice.
+   */
+  async uploadInvoicePdf(invoiceId, file) {
+    // 1. Find the invoice
+    const invoice = await Invoice.findByPk(invoiceId);
+    if (!invoice) {
+      throw new AppError("Invoice not found", 404);
+    }
+
+    // 2. Prepare MinIO Upload Details
+    const bucketName = process.env.MINIO_BUCKET_NAME;
+
+    // Create a clean file name using the actual invoice number (e.g., invoices/INV-2026-12345-170834.pdf)
+    const fileName = `invoices/${invoice.invoiceNumber}-${Date.now()}.pdf`;
+
+    // 3. Push the memory buffer to MinIO
+    await minioClient.putObject(
+      bucketName,
+      fileName,
+      file.buffer, // The PDF data in RAM
+      file.size,
+      { "Content-Type": file.mimetype },
+    );
+
+    // 4. Construct the URL to save in the database
+    const minioEndpoint = process.env.MINIO_ENDPOINT;
+    const pdfUrl = `${minioEndpoint}/${bucketName}/${fileName}`;
+
+    // 5. Update the Invoice record
+    invoice.invoicePdfUrl = pdfUrl;
+    await invoice.save();
+
+    return pdfUrl;
   }
 }

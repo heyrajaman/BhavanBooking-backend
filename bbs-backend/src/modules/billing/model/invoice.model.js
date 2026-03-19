@@ -167,6 +167,14 @@ export default class Invoice extends Model {
           type: DataTypes.TEXT, // If admin rejects, they can leave a note here
           allowNull: true,
         },
+        adminSignatureUrl: {
+          type: DataTypes.STRING,
+          allowNull: true, // Attached automatically during the approval process
+        },
+        invoicePdfUrl: {
+          type: DataTypes.STRING,
+          allowNull: true,
+        },
       },
       {
         sequelize,

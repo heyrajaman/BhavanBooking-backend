@@ -3,6 +3,8 @@ import { AuditRepository } from "../repository/audit.repository.js";
 import sequelize from "../../../config/database.js"; // Needed for transactions
 import { AppError } from "../../../utils/AppError.js";
 import { NotificationService } from "../../notification/service/notification.service.js";
+import minioClient from "../../../config/minio.js";
+import User from "../../user/model/user.model.js";
 
 export class AdminService {
   constructor() {
@@ -112,6 +114,39 @@ export class AdminService {
       await transaction.rollback();
       throw error;
     }
+  }
+
+  async uploadAdminSignature(adminId, file) {
+    // 1. Prepare MinIO Upload Details
+    const bucketName = process.env.MINIO_BUCKET_NAME;
+
+    // Create a clean, unique file path
+    const fileExtension = file.originalname.split(".").pop();
+    const fileName = `signatures/admin-${adminId}-${Date.now()}.${fileExtension}`;
+
+    // 2. Push the memory buffer to MinIO
+    await minioClient.putObject(
+      bucketName,
+      fileName,
+      file.buffer, // The file data in RAM
+      file.size,
+      { "Content-Type": file.mimetype },
+    );
+
+    // 3. Construct the URL to save in the database
+    const minioEndpoint = process.env.MINIO_ENDPOINT;
+    const signatureUrl = `${minioEndpoint}/${bucketName}/${fileName}`;
+
+    // 4. Update the Admin's profile in the database
+    const admin = await User.findByPk(adminId);
+    if (!admin) {
+      throw new AppError("Admin user not found.", 404);
+    }
+
+    admin.signatureUrl = signatureUrl;
+    await admin.save();
+
+    return signatureUrl; // Return the new URL to the controller
   }
 
   /**
