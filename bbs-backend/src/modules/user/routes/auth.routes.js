@@ -3,7 +3,12 @@ import { Router } from "express";
 import { AuthController } from "../controller/auth.controller.js";
 import { catchAsync } from "../../../utils/catchAsync.js";
 import { validateDto } from "../../../middlewares/validate.js";
-import { UserLoginDto, UserRegisterDto } from "../dto/user.auth.dto.js";
+import {
+  ChangePasswordDto,
+  UserLoginDto,
+  UserRegisterDto,
+} from "../dto/user.auth.dto.js";
+import { protect } from "../../../middlewares/auth.middleware.js";
 
 const router = Router();
 const authController = new AuthController();
@@ -23,6 +28,17 @@ router.post(
   "/user/login",
   validateDto(UserLoginDto),
   catchAsync(authController.loginUser),
+);
+
+// GET /api/v1/auth/me
+router.get("/me", protect, catchAsync(authController.getMyProfile));
+
+// PATCH /api/v1/auth/update-password
+router.patch(
+  "/update-password",
+  protect,
+  validateDto(ChangePasswordDto),
+  catchAsync(authController.updateMyPassword),
 );
 
 export default router;

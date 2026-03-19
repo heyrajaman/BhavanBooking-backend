@@ -3,6 +3,7 @@ import bcrypt from "bcrypt";
 import jwt from "jsonwebtoken";
 import { UserRepository } from "../repository/user.repository.js";
 import { AppError } from "../../../utils/AppError.js";
+import User from "../model/user.model.js";
 
 export class AuthService {
   constructor() {
@@ -89,5 +90,42 @@ export class AuthService {
       },
       userAccessToken, // Distinct token name for the User portal
     };
+  }
+
+  async getProfile(userId) {
+    const user = await User.findByPk(userId, {
+      // Security: Never send the password hash back to the frontend
+      attributes: { exclude: ["passwordHash"] },
+    });
+
+    if (!user) {
+      throw new AppError("User not found", 404);
+    }
+
+    return user;
+  }
+
+  /**
+   * Handle the password change logic securely
+   */
+  async changePassword(userId, oldPassword, newPassword) {
+    const user = await User.findByPk(userId);
+    if (!user) {
+      throw new AppError("User not found", 404);
+    }
+
+    // 1. Verify the old password provided by the user
+    const isMatch = await bcrypt.compare(oldPassword, user.passwordHash);
+    if (!isMatch) {
+      throw new AppError("Incorrect old password. Please try again.", 401);
+    }
+
+    // 2. Hash the new password before saving
+    const salt = await bcrypt.genSalt(10);
+    user.passwordHash = await bcrypt.hash(newPassword, salt);
+
+    await user.save();
+
+    return true; // Simple success boolean
   }
 }
