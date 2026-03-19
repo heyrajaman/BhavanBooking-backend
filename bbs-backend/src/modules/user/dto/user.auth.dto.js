@@ -36,3 +36,28 @@ export const UserLoginDto = Joi.object({
     "any.required": "Password is required.",
   }),
 }).options({ stripUnknown: true });
+
+export const ChangePasswordDto = Joi.object({
+  oldPassword: Joi.string().required().messages({
+    "string.empty": "Old password is required",
+    "any.required": "Old password is required",
+  }),
+  newPassword: Joi.string()
+    .min(8)
+    .pattern(new RegExp("^(?=.*[a-z])(?=.*[A-Z])(?=.*[0-9])(?=.*[!@#$%^&*])"))
+    .required()
+    .messages({
+      "string.empty": "New password is required",
+      "string.min": "New password must be at least 8 characters long",
+      "string.pattern.base":
+        "New password must contain at least one uppercase letter, one lowercase letter, one number, and one special character",
+      "any.required": "New password is required",
+    }),
+  confirmNewPassword: Joi.any()
+    .valid(Joi.ref("newPassword"))
+    .required()
+    .messages({
+      "any.only": "Passwords do not match",
+      "any.required": "Confirm password is required",
+    }),
+});

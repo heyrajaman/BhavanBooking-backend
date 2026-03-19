@@ -30,4 +30,31 @@ export class AuthController {
       data: result, // This object now contains the specific userAccessToken
     });
   };
+
+  getMyProfile = async (req, res, next) => {
+    const profile = await this.authService.getProfile(req.user.id);
+
+    return res.status(200).json({
+      success: true,
+      message: "Profile fetched successfully",
+      data: {
+        user: profile,
+      },
+    });
+  };
+
+  updateMyPassword = async (req, res, next) => {
+    const { oldPassword, newPassword } = req.body;
+
+    await this.authService.changePassword(
+      req.user.id,
+      oldPassword,
+      newPassword,
+    );
+
+    return res.status(200).json({
+      success: true,
+      message: "Password updated successfully",
+    });
+  };
 }
