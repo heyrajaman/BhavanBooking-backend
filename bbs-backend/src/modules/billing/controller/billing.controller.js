@@ -73,3 +73,18 @@ export const uploadInvoicePdf = catchAsync(async (req, res) => {
     },
   });
 });
+
+export const getInvoiceForCustomer = catchAsync(async (req, res, next) => {
+  const { bookingId } = req.params;
+  const userId = req.user.id; // From your auth middleware
+
+  const billingService = new BillingService();
+  const invoice = await billingService.getInvoiceForCustomer(bookingId, userId);
+
+  res.status(200).json({
+    status: "success",
+    data: {
+      invoice,
+    },
+  });
+});

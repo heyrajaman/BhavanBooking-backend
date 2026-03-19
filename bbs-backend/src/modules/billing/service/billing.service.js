@@ -321,4 +321,24 @@ export class BillingService {
 
     return pdfUrl;
   }
+
+  // Add this method to your BillingService class
+  async getInvoiceForCustomer(bookingId, userId) {
+    const invoice = await Invoice.findOne({
+      where: { bookingId },
+      include: [
+        {
+          model: Booking,
+          where: { userId }, // This ensures User A can't see User B's invoice
+          attributes: ["id", "status"],
+        },
+      ],
+    });
+
+    if (!invoice) {
+      throw new AppError("Invoice not found or access denied.", 404);
+    }
+
+    return invoice;
+  }
 }
