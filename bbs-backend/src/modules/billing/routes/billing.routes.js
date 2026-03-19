@@ -7,6 +7,7 @@ import {
   getInvoice,
   processAdminApproval,
   uploadInvoicePdf,
+  getInvoiceForCustomer,
 } from "../controller/billing.controller.js";
 
 // Middlewares
@@ -51,6 +52,14 @@ router.get(
   restrictTo("CLERK", "ADMIN"),
   // You might need to ensure UuidParamDto looks for 'bookingId' if it was generically written
   getInvoice,
+);
+
+// Customer-facing route
+router.get(
+  "/my-invoice/:bookingId",
+  protectRoute,
+  restrictTo("USER"),
+  getInvoiceForCustomer,
 );
 
 // 2. CHECKER: Approve or Reject Invoice (Strictly Admins)
