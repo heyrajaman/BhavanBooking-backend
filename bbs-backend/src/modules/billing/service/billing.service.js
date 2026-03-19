@@ -212,7 +212,7 @@ export class BillingService {
     if (!admin) throw new AppError("Admin not found", 404);
 
     // If Admin Rejects
-    if (dto.status === "REJECTED") {
+    if (dto.approvalStatus === "REJECTED") {
       invoice.approvalStatus = "REJECTED";
       invoice.adminRemarks = dto.adminRemarks;
       invoice.approvedBy = adminId;

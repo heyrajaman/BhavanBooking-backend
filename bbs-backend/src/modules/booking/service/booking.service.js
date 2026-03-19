@@ -157,6 +157,14 @@ export class BookingService {
 
         // 3. If there are conflicts inside the package, return the PARTIAL availability response!
         if (takenComponents.length > 0) {
+
+          if (availableComponents.length === 0) {
+            return {
+              isAvailable: false,
+              isPartiallyAvailable: false,
+              message: `This package is completely booked for these dates. (${takenComponents.join(", ")} are all taken)`,
+            };
+          }
           // Fetch the database IDs of the remaining available items so the frontend can easily book them
           const availableFacilitiesDb = await this.facilityRepository.findAll({
             name: takenComponents.length > 0 ? availableComponents : [],
