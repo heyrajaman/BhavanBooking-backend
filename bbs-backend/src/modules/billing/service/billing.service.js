@@ -208,7 +208,7 @@ export class BillingService {
     if (!booking) throw new AppError("Associated booking not found", 404);
 
     // If Admin Rejects
-    if (dto.status === "REJECTED") {
+    if (dto.approvalStatus === "REJECTED") {
       invoice.approvalStatus = "REJECTED";
       invoice.adminRemarks = dto.adminRemarks;
       invoice.approvedBy = adminId;
