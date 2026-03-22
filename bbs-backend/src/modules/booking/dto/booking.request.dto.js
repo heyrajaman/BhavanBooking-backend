@@ -57,3 +57,15 @@ export const CreateBookingDto = Joi.object({
       "Either a main Facility ID or custom facilities must be provided.",
   })
   .options({ stripUnknown: true });
+
+export const generateReportDto = Joi.object({
+  fromDate: Joi.date().iso().required().messages({
+    "date.base": "fromDate must be a valid ISO date",
+    "any.required": "fromDate is required to generate a report",
+  }),
+  toDate: Joi.date().iso().min(Joi.ref("fromDate")).required().messages({
+    "date.base": "toDate must be a valid ISO date",
+    "date.min": "toDate cannot be earlier than fromDate",
+    "any.required": "toDate is required to generate a report",
+  }),
+});

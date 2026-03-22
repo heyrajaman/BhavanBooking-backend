@@ -120,25 +120,28 @@ export class BookingController {
   checkInBooking = async (req, res, next) => {
     const { bookingId } = req.params;
 
-const booking = await Booking.findByPk(bookingId);
-      
-      if (!booking) {
-        return res.status(404).json({ success: false, message: "Booking not found." });
-      }
+    const booking = await Booking.findByPk(bookingId);
 
-      if (booking.status !== "CONFIRMED") {
-        return res.status(400).json({ 
-          success: false, 
-          message: "Only confirmed bookings can be checked in." 
-        });
-      }
+    if (!booking) {
+      return res
+        .status(404)
+        .json({ success: false, message: "Booking not found." });
+    }
 
-      if (booking.paymentStatus !== "COMPLETED") {
-        return res.status(400).json({ 
-          success: false, 
-          message: "Guest cannot be checked in! They must pay the remaining balance first." 
-        });
-      }
+    if (booking.status !== "CONFIRMED") {
+      return res.status(400).json({
+        success: false,
+        message: "Only confirmed bookings can be checked in.",
+      });
+    }
+
+    if (booking.paymentStatus !== "COMPLETED") {
+      return res.status(400).json({
+        success: false,
+        message:
+          "Guest cannot be checked in! They must pay the remaining balance first.",
+      });
+    }
 
     // 1. Enforce that the image was actually provided
     if (!req.file) {
@@ -202,6 +205,20 @@ const booking = await Booking.findByPk(bookingId);
       success: true,
       message: "Booking application has been successfully rejected.",
       data: formattedBooking,
+    });
+  };
+
+  /**
+   * Generates a summary report of bookings within a date range
+   */
+  generateReport = async (req, res, next) => {
+    // Pass the query parameters (fromDate, toDate) to the service
+    const reportData = await this.bookingService.generateReport(req.query);
+
+    return res.status(200).json({
+      success: true,
+      message: "Report generated successfully.",
+      data: reportData,
     });
   };
 }
