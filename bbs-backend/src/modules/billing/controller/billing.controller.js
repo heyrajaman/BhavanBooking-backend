@@ -52,6 +52,7 @@ export const processAdminApproval = catchAsync(async (req, res) => {
     data: {
       refundId: result.refundId,
       settlementReport: result.settlementReport,
+      signatureUrl: result.settlementReport.adminSignatureUrl
     },
   });
 });
