@@ -2,7 +2,10 @@
 import { Router } from "express";
 import { BookingController } from "../controller/booking.controller.js";
 import { validateDto } from "../../../middlewares/validate.js";
-import { CreateBookingDto } from "../dto/booking.request.dto.js";
+import {
+  CreateBookingDto,
+  generateReportDto,
+} from "../dto/booking.request.dto.js";
 import { catchAsync } from "../../../utils/catchAsync.js";
 import { protect, restrictTo } from "../../../middlewares/auth.middleware.js";
 import { UuidParamDto } from "../../../middlewares/common.dto.js";
@@ -30,6 +33,15 @@ router.get(
   "/my-bookings",
   protect, // Ensure the user is logged in (this attaches req.user.id)
   catchAsync(bookingController.getMyBookings),
+);
+
+// GET /api/v1/bookings/report - Generate booking revenue report
+router.get(
+  "/report",
+  protect, // 1. Must be logged in
+  restrictTo("ADMIN", "CLERK"), // 2. Must be staff
+  validateDto(generateReportDto, "query"), // 3. Validate fromDate and toDate from req.query
+  catchAsync(bookingController.generateReport), // 4. Execute controller logic
 );
 
 // POST /api/v1/bookings - Submit a new booking form

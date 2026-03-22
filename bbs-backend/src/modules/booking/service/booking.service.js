@@ -3,6 +3,8 @@ import { BookingRepository } from "../repository/booking.repository.js";
 import { FacilityRepository } from "../../facility/repository/facility.repository.js";
 import { AppError } from "../../../utils/AppError.js";
 import { NotificationService } from "../../notification/service/notification.service.js";
+import { Op } from "sequelize";
+import Booking from "../model/booking.model.js";
 
 export class BookingService {
   constructor() {
@@ -157,7 +159,6 @@ export class BookingService {
 
         // 3. If there are conflicts inside the package, return the PARTIAL availability response!
         if (takenComponents.length > 0) {
-
           if (availableComponents.length === 0) {
             return {
               isAvailable: false,
@@ -440,6 +441,58 @@ export class BookingService {
     // to generate the final invoice for remaining payments.
 
     return booking;
+  }
+
+  /**
+   * Generates a report of bookings and revenue within a date range
+   */
+  async generateReport(dto) {
+    const { fromDate, toDate } = dto;
+
+    // Ensure the 'toDate' covers the entire day (up to 23:59:59)
+    // so we don't miss bookings made on the last day.
+    const endOfDay = new Date(toDate);
+    endOfDay.setUTCHours(23, 59, 59, 999);
+
+    // 1. Fetch the bookings within the date range
+    const bookings = await Booking.findAll({
+      where: {
+        createdAt: {
+          [Op.between]: [new Date(fromDate), endOfDay],
+        },
+        // Optional: You might want to exclude "CANCELLED" or "FAILED" bookings from revenue
+        // status: {
+        //   [Op.notIn]: ["CANCELLED", "FAILED"]
+        // }
+      },
+      order: [["createdAt", "DESC"]],
+    });
+
+    // 2. Calculate the Summary Data
+    const totalBookings = bookings.length;
+
+    // Sum up the payment amount (using calculatedAmount based on your existing structure)
+    const totalRevenue = bookings.reduce((sum, booking) => {
+      // If you track actual paid amounts in another field or table, change `calculatedAmount` to that field.
+      const amount = parseFloat(booking.calculatedAmount || 0);
+      return sum + amount;
+    }, 0);
+
+    // 3. Format the response data to match the exact requirements
+    const formattedBookings = bookings.map((booking) => ({
+      bookingId: booking.id,
+      bookingDate: booking.createdAt,
+      paymentAmount: parseFloat(booking.calculatedAmount || 0),
+      status: booking.status,
+    }));
+
+    return {
+      summary: {
+        totalBookings,
+        totalRevenue,
+      },
+      bookings: formattedBookings,
+    };
   }
 
   _calculatePrice(facility, startTime, endTime) {
