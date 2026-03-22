@@ -55,14 +55,20 @@ export class BillingService {
       );
     }
 
+    const isDonation = dto.invoiceType === "DONATION";
+    const invoiceType = dto.invoiceType || "GENERAL";
+
     // 2. Extract Trusted Data straight from the DB
     const securityDeposit = parseFloat(booking.securityDeposit || 0);
     const baseAmount = parseFloat(booking.calculatedAmount || 0);
     const userId = customer.id;
     // Note: Adjust 'fullName', 'email', 'phone' below if your User model uses slightly different column names (like firstName)
-    const customerName = customer.fullName;
-    const customerEmail = customer.email;
-    const customerPhone = customer.mobile;
+    const customerName = isDonation ? dto.customerName : customer.fullName;
+    const customerEmail = isDonation ? dto.customerEmail : customer.email;
+    const customerPhone = isDonation ? dto.customerPhone : customer.mobile;
+    const billingAddress = isDonation
+      ? dto.billingAddress
+      : dto.billingAddress || null;
 
     // --- 3. Base Pricing & Additional Items ---
     const discountAmount = parseFloat(dto.discountAmount || 0);
@@ -78,10 +84,13 @@ export class BillingService {
       0,
       baseAmount + totalAdditionalAmount - discountAmount,
     );
-    const cgstAmount = parseFloat((taxableAmount * 0.025).toFixed(2));
-    const sgstAmount = parseFloat((taxableAmount * 0.025).toFixed(2));
+    const cgstAmount = isDonation
+      ? 0.0
+      : parseFloat((taxableAmount * 0.025).toFixed(2));
+    const sgstAmount = isDonation
+      ? 0.0
+      : parseFloat((taxableAmount * 0.025).toFixed(2));
     const totalAmount = taxableAmount + cgstAmount + sgstAmount;
-
     // --- 5. Post-Event Deduction Calculations ---
     const electricityCharges = (dto.electricityUnitsConsumed || 0) * 14;
     const cleaningCharges = parseFloat(dto.cleaningCharges || 0);
@@ -99,14 +108,14 @@ export class BillingService {
       electricityCharges + cleaningCharges + generatorCharges + totalPenalties;
 
     // --- 6. Final Refund / Balance Math ---
-  const grandTotalEventCost = totalAmount + totalDeductions;
+    const grandTotalEventCost = totalAmount + totalDeductions;
 
     // What the user has already paid:
     const totalPaidUpfront = baseAmount + securityDeposit;
 
     // The net difference:
     const netDifference = totalPaidUpfront - grandTotalEventCost;
-   let finalRefundAmount = 0;
+    let finalRefundAmount = 0;
     let additionalBalanceDue = 0;
 
     if (netDifference > 0) {
@@ -120,6 +129,7 @@ export class BillingService {
     // --- 7. Save or Update ---
     if (existingInvoice) {
       // Use the trusted DB values instead of DTO
+      existingInvoice.invoiceType = invoiceType;
       existingInvoice.userId = userId;
       existingInvoice.customerName = customerName;
       existingInvoice.customerEmail = customerEmail;
@@ -159,13 +169,14 @@ export class BillingService {
 
     const draftInvoice = await Invoice.create({
       invoiceNumber,
+      invoiceType,
       bookingId: dto.bookingId,
-      userId: userId, // 👈 DB value
+      userId: userId,
       generatedBy: clerkId,
 
-      customerName: customerName, // 👈 DB value
-      customerEmail: customerEmail, // 👈 DB value
-      customerPhone: customerPhone, // 👈 DB value
+      customerName: customerName,
+      customerEmail: customerEmail,
+      customerPhone: customerPhone,
 
       billingAddress: dto.billingAddress,
       dueDate: dto.dueDate,
@@ -185,7 +196,7 @@ export class BillingService {
       generatorCharges,
       damagesAndPenalties: dto.damagesAndPenalties,
       totalDeductions,
-      securityDepositHeld: securityDeposit, // 👈 DB value
+      securityDepositHeld: securityDeposit,
       finalRefundAmount,
       additionalBalanceDue,
 

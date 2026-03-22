@@ -4,7 +4,46 @@ import Joi from "joi";
 export const generateInvoiceDto = Joi.object({
   bookingId: Joi.string().uuid().required(),
 
-  billingAddress: Joi.string().max(500).allow(null, ""),
+  // 1. Add the new invoiceType field
+  invoiceType: Joi.string().valid("GENERAL", "DONATION").default("GENERAL"),
+
+  // 2. Strict dynamic validation for manual customer details
+  customerName: Joi.string().max(50).when("invoiceType", {
+    is: "DONATION",
+    then: Joi.required(),
+    otherwise: Joi.optional(),
+  }),
+
+  customerEmail: Joi.string()
+    .email()
+    .trim()
+    .lowercase()
+    .when("invoiceType", {
+      is: "DONATION",
+      then: Joi.required(),
+      otherwise: Joi.optional().allow(null, ""),
+    }),
+
+  customerPhone: Joi.string()
+    .pattern(/^[6-9]\d{9}$/)
+    .messages({
+      "string.pattern.base":
+        "Phone number must be a valid 10-digit Indian mobile number.",
+    })
+    .when("invoiceType", {
+      is: "DONATION",
+      then: Joi.required(),
+      otherwise: Joi.optional().allow(null, ""),
+    }),
+
+  billingAddress: Joi.string()
+    .max(500)
+    .when("invoiceType", {
+      is: "DONATION",
+      then: Joi.required(),
+      otherwise: Joi.allow(null, ""),
+    }),
+
   dueDate: Joi.date().iso().min("now").required(),
 
   // baseAmount is GONE!
