@@ -133,9 +133,12 @@ export class AdminService {
       { "Content-Type": file.mimetype },
     );
 
-    // 3. Construct the URL to save in the database
-    const minioEndpoint = process.env.MINIO_ENDPOINT;
-    const signatureUrl = `${minioEndpoint}/${bucketName}/${fileName}`;
+    // admin.service.js - inside uploadAdminSignature
+    const protocol = process.env.MINIO_USE_SSL === "true" ? "https" : "http";
+    const port = process.env.MINIO_PORT ? `:${process.env.MINIO_PORT}` : "";
+
+    // Correct URL generation
+    const signatureUrl = `${protocol}://${process.env.MINIO_ENDPOINT}${port}/${bucketName}/${fileName}`;
 
     // 4. Update the Admin's profile in the database
     const admin = await User.findByPk(adminId);
