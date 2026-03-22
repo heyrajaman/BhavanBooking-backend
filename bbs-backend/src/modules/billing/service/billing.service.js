@@ -99,12 +99,22 @@ export class BillingService {
       electricityCharges + cleaningCharges + generatorCharges + totalPenalties;
 
     // --- 6. Final Refund / Balance Math ---
-    let finalRefundAmount = securityDeposit - totalDeductions;
+  const grandTotalEventCost = totalAmount + totalDeductions;
+
+    // What the user has already paid:
+    const totalPaidUpfront = baseAmount + securityDeposit;
+
+    // The net difference:
+    const netDifference = totalPaidUpfront - grandTotalEventCost;
+   let finalRefundAmount = 0;
     let additionalBalanceDue = 0;
 
-    if (finalRefundAmount < 0) {
-      additionalBalanceDue = Math.abs(finalRefundAmount);
-      finalRefundAmount = 0;
+    if (netDifference > 0) {
+      // We owe the user money
+      finalRefundAmount = parseFloat(netDifference.toFixed(2));
+    } else if (netDifference < 0) {
+      // The user owes us money
+      additionalBalanceDue = parseFloat(Math.abs(netDifference).toFixed(2));
     }
 
     // --- 7. Save or Update ---
@@ -187,7 +197,22 @@ export class BillingService {
   }
 
   async getInvoiceByBookingId(bookingId) {
-    const invoice = await Invoice.findOne({ where: { bookingId } });
+    const invoice = await Invoice.findOne({
+      where: { bookingId },
+      include: [
+        {
+          model: User,
+          as: "clerk",
+          attributes: ["id", "fullName"],
+        },
+
+        {
+          model: User,
+          as: "admin",
+          attributes: ["id", "fullName", "signatureUrl"],
+        },
+      ],
+    });
     if (!invoice) {
       throw new AppError("No invoice found for this booking", 404);
     }
@@ -317,6 +342,7 @@ export class BillingService {
 
     // 5. Update the Invoice record
     invoice.invoicePdfUrl = pdfUrl;
+
     await invoice.save();
 
     return pdfUrl;
@@ -331,6 +357,12 @@ export class BillingService {
           model: Booking,
           where: { userId }, // This ensures User A can't see User B's invoice
           attributes: ["id", "status"],
+        },
+        { model: User, as: "clerk", attributes: ["id", "fullName"] },
+        {
+          model: User,
+          as: "admin",
+          attributes: ["id", "fullName", "signatureUrl"],
         },
       ],
     });
