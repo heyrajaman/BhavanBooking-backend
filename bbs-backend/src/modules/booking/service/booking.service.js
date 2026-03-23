@@ -7,6 +7,8 @@ import { Op } from "sequelize";
 import Booking from "../model/booking.model.js";
 import User from "../../user/model/user.model.js";
 import bcrypt from "bcrypt";
+import { razorpayInstance } from "../../../config/razorpay.js";
+import Invoice from "../../billing/model/invoice.model.js";
 
 export class BookingService {
   constructor() {
@@ -515,29 +517,41 @@ export class BookingService {
         createdAt: {
           [Op.between]: [new Date(fromDate), endOfDay],
         },
-        // Optional: You might want to exclude "CANCELLED" or "FAILED" bookings from revenue
-        // status: {
-        //   [Op.notIn]: ["CANCELLED", "FAILED"]
-        // }
+        status: {
+          [Op.notIn]: ["REJECTED"],
+        },
       },
+      include: [
+        {
+          model: Invoice,
+          as: "invoice",
+          required: false,
+        },
+      ],
       order: [["createdAt", "DESC"]],
     });
 
     // 2. Calculate the Summary Data
     const totalBookings = bookings.length;
 
-    // Sum up the payment amount (using calculatedAmount based on your existing structure)
     const totalRevenue = bookings.reduce((sum, booking) => {
-      // If you track actual paid amounts in another field or table, change `calculatedAmount` to that field.
-      const amount = parseFloat(booking.calculatedAmount || 0);
-      return sum + amount;
+      if (booking.invoice && booking.invoice.approvalStatus === "APPROVED") {
+        return sum + parseFloat(booking.invoice.totalAmount || 0);
+      }
+      const advancePaid = parseFloat(booking.advanceAmountRequested || 0);
+      const remainingPaid = parseFloat(booking.remainingAmountPaid || 0);
+      const refunded = parseFloat(booking.refundAmount || 0);
+
+      return sum + (advancePaid + remainingPaid - refunded);
     }, 0);
 
     // 3. Format the response data to match the exact requirements
     const formattedBookings = bookings.map((booking) => ({
       bookingId: booking.id,
       bookingDate: booking.createdAt,
-      paymentAmount: parseFloat(booking.calculatedAmount || 0),
+      paymentAmount: booking.invoice
+        ? parseFloat(booking.invoice.totalAmount || 0)
+        : parseFloat(booking.calculatedAmount || 0),
       status: booking.status,
     }));
 
@@ -547,6 +561,192 @@ export class BookingService {
         totalRevenue,
       },
       bookings: formattedBookings,
+    };
+  }
+
+  async getCancellationPolicy() {
+    return {
+      rules: [
+        {
+          daysBefore: 30,
+          refundPercentage: 50,
+          description:
+            "If cancelled 30 or more days before check-in, 50% of the advance amount is refunded.",
+        },
+        {
+          daysBefore: 15,
+          refundPercentage: 25,
+          description:
+            "If cancelled between 15 and 29 days before check-in, 25% of the advance amount is refunded.",
+        },
+        {
+          daysBefore: 0,
+          refundPercentage: 0,
+          description:
+            "If cancelled less than 15 days before check-in, no refund is provided.",
+        },
+      ],
+    };
+  }
+
+  async cancelBooking(bookingId, userId, userRole, cancellationReason) {
+    const booking = await Booking.findByPk(bookingId);
+    if (!booking) {
+      throw new AppError("Booking not found", 404);
+    }
+
+    if (
+      booking.userId !== userId &&
+      userRole !== "CLERK" &&
+      userRole !== "ADMIN"
+    ) {
+      throw new AppError(
+        "You do not have permission to cancel this booking",
+        403,
+      );
+    }
+
+    if (booking.status === "CANCELLED") {
+      throw new AppError("This booking is already cancelled", 400);
+    }
+    if (booking.status === "CHECKED_IN" || booking.status === "CHECKED_OUT") {
+      throw new AppError(
+        "Cannot cancel a booking that is already active or completed",
+        400,
+      );
+    }
+
+    const currentDate = new Date();
+    const checkInDate = new Date(booking.startTime);
+
+    if (checkInDate <= currentDate) {
+      throw new AppError(
+        "Cannot cancel a booking after its check-in time has passed",
+        400,
+      );
+    }
+
+    const diffTime = checkInDate.getTime() - currentDate.getTime();
+    const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
+
+    const advanceAmount = Number(booking.advanceAmountRequested || 0);
+    let refundPercentage = 0;
+
+    if (diffDays >= 30) {
+      refundPercentage = 50;
+    } else if (diffDays >= 15) {
+      refundPercentage = 25;
+    } else {
+      refundPercentage = 0;
+    }
+
+    const refundAmount = (advanceAmount * refundPercentage) / 100;
+
+    if (
+      refundAmount > 0 &&
+      booking.advancePaymentMode === "ONLINE" &&
+      booking.razorpayPaymentId
+    ) {
+      try {
+        // Razorpay expects the amount in the smallest currency unit (paise for INR)
+        const refundAmountInPaise = Math.round(refundAmount * 100);
+
+        await razorpayInstance.payments.refund(booking.razorpayPaymentId, {
+          amount: refundAmountInPaise,
+          notes: {
+            bookingId: booking.id,
+            reason: "Booking Cancellation",
+          },
+        });
+
+        // Update payment status to reflect the refund
+        booking.paymentStatus = "REFUNDED";
+      } catch (error) {
+        console.error("Razorpay Refund Error:", error);
+        throw new AppError(
+          "Failed to process the refund with Razorpay. Please try again or contact support.",
+          500,
+        );
+      }
+    } else if (refundAmount > 0) {
+      // If they paid by CASH or QR, they still get a refund, but it requires manual action
+      // We can leave paymentStatus as "PARTIAL" or add a new enum like "PENDING_MANUAL_REFUND" later if you wish
+      booking.paymentStatus = "PARTIAL";
+    }
+
+    booking.status = "CANCELLED";
+    booking.refundAmount = refundAmount;
+    booking.cancelledAt = currentDate;
+    booking.cancellationReason = cancellationReason || null;
+
+    await booking.save();
+
+    return {
+      bookingId: booking.id,
+      status: booking.status,
+      refundAmount,
+      refundPercentage,
+      cancelledAt: booking.cancelledAt,
+      message:
+        booking.advancePaymentMode === "ONLINE"
+          ? "Refund initiated successfully to the original payment source."
+          : "Booking cancelled. Please collect your cash refund from the clerk.",
+    };
+  }
+
+  async completeManualRefund(bookingId, staffId, refundNote) {
+    const booking = await Booking.findByPk(bookingId);
+
+    if (!booking) {
+      throw new AppError("Booking not found", 404);
+    }
+
+    // Validation checks
+    if (booking.status !== "CANCELLED") {
+      throw new AppError("Cannot refund a booking that is not cancelled.", 400);
+    }
+
+    if (booking.paymentStatus === "REFUNDED") {
+      throw new AppError(
+        "This booking has already been completely refunded.",
+        400,
+      );
+    }
+
+    if (booking.advancePaymentMode === "ONLINE" && booking.razorpayPaymentId) {
+      throw new AppError(
+        "This is an online payment. It should be refunded via Razorpay automatically.",
+        400,
+      );
+    }
+
+    if (!booking.refundAmount || Number(booking.refundAmount) <= 0) {
+      throw new AppError(
+        "There is no refund amount due for this booking.",
+        400,
+      );
+    }
+
+    // Update the booking to reflect the cash was handed over
+    booking.paymentStatus = "REFUNDED";
+
+    // Optional: If you want to store the note, you can append it to customDetails
+    // or if you add a 'refundNote' column later. For now, let's safely put it in customDetails.
+    const currentDetails = booking.customDetails || {};
+    booking.customDetails = {
+      ...currentDetails,
+      manualRefundConfirmedBy: staffId,
+      manualRefundNote: refundNote || "Cash handed over to customer",
+      manualRefundDate: new Date(),
+    };
+
+    await booking.save();
+
+    return {
+      bookingId: booking.id,
+      refundAmount: booking.refundAmount,
+      paymentStatus: booking.paymentStatus,
+      message: "Manual refund marked as completed successfully.",
     };
   }
 

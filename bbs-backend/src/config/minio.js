@@ -33,7 +33,7 @@ export const uploadFileToMinio = async (file) => {
 
   // Generate a unique filename to prevent overwrites
   const uniquePrefix = crypto.randomBytes(8).toString("hex");
-  const fileName = `aadhar_${uniquePrefix}_${file.originalname.replace(/\s+/g, "_")}`;
+  const fileName = `${folderName}/${uniquePrefix}_${file.originalname.replace(/\s+/g, "_")}`;
 
   const metaData = {
     "Content-Type": file.mimetype,
