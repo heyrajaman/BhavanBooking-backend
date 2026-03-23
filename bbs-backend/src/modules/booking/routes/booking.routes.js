@@ -6,6 +6,7 @@ import {
   CheckInDto,
   CreateBookingDto,
   generateReportDto,
+  CreateBookingOnBehalfDto,
 } from "../dto/booking.request.dto.js";
 import { catchAsync } from "../../../utils/catchAsync.js";
 import { protect, restrictTo } from "../../../middlewares/auth.middleware.js";
@@ -51,6 +52,14 @@ router.post(
   protect, // 1. Ensure the user is logged in
   validateDto(CreateBookingDto), // 2. Validate the incoming form payload
   catchAsync(bookingController.createBooking), // 3. Execute the controller logic
+);
+
+router.post(
+  "/on-behalf",
+  protect,
+  restrictTo("CLERK", "ADMIN"), // Only staff can do this
+  validateDto(CreateBookingOnBehalfDto),
+  catchAsync(bookingController.createBookingOnBehalf),
 );
 
 // PATCH /api/v1/bookings/:bookingId/check-in - Staff checks in a guest

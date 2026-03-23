@@ -16,3 +16,11 @@ export const VerifyPaymentDto = Joi.object({
     "any.required": "Booking ID is required.",
   }),
 }).options({ stripUnknown: true });
+
+export const OfflineAdvanceDto = Joi.object({
+  bookingId: Joi.string().uuid().required(),
+  paymentMode: Joi.string().valid("CASH", "QR").required(),
+  amountCollected: Joi.number().min(1).required().messages({
+    "number.min": "Amount collected must be greater than 0.",
+  }),
+});

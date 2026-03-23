@@ -149,7 +149,7 @@ export default class Invoice extends Model {
           defaultValue: 0.0,
         },
         settlementMode: {
-          type: DataTypes.ENUM("ONLINE", "CASH"),
+          type: DataTypes.ENUM("ONLINE", "CASH", "QR"),
           allowNull: false,
           defaultValue: "ONLINE", // Default to online for safety
         },

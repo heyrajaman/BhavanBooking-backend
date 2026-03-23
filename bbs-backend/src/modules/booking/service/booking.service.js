@@ -5,6 +5,8 @@ import { AppError } from "../../../utils/AppError.js";
 import { NotificationService } from "../../notification/service/notification.service.js";
 import { Op } from "sequelize";
 import Booking from "../model/booking.model.js";
+import User from "../../user/model/user.model.js";
+import bcrypt from "bcrypt";
 
 export class BookingService {
   constructor() {
@@ -30,6 +32,52 @@ export class BookingService {
     });
 
     return { newBooking };
+  }
+
+  /**
+   * STAFF: Processes an offline/walk-in booking
+   */
+  async createBookingOnBehalf(bookingData, clerkId) {
+    // 1. Find or Create the User based on mobile number
+    let isNewUser = false;
+    let user = await User.findOne({ where: { mobile: bookingData.mobile } });
+
+    const plainTextPassword =
+      "WalkInUser@" + Math.floor(1000 + Math.random() * 9000);
+    const hashedPassword = await bcrypt.hash(plainTextPassword, 10);
+
+    if (!user) {
+      // Create a new user if they don't exist in the system
+      user = await User.create({
+        fullName: bookingData.fullName,
+        mobile: bookingData.mobile,
+        email: bookingData.email || null,
+        address: bookingData.address || null,
+        passwordHash: hashedPassword,
+        role: "USER",
+      });
+      isNewUser = true;
+    }
+
+    // 2. Validate availability and calculate price using your existing core logic!
+    const { totalAmount, totalSecurityDeposit, mainFacilityId, customDetails } =
+      await this._processAndValidateBookingItems(bookingData);
+
+    // 3. Create the Booking
+    const newBooking = await this.bookingRepository.create({
+      userId: user.id,
+      facilityId: mainFacilityId,
+      customDetails: customDetails,
+      startTime: bookingData.startTime,
+      endTime: bookingData.endTime,
+      eventType: bookingData.eventType,
+      guestCount: bookingData.guestCount,
+      calculatedAmount: totalAmount,
+      securityDeposit: totalSecurityDeposit,
+      status: "PENDING_ADMIN_APPROVAL",
+    });
+
+    return { newBooking, user, isNewUser };
   }
 
   // Replace your existing getUnavailableDates method with this:
@@ -414,8 +462,8 @@ export class BookingService {
     booking.actualCheckInTime = new Date();
     booking.aadharImageUrl = aadharFileName;
 
-    if (paymentData.checkInPaymentMode === "CASH") {
-      booking.checkInPaymentMode = "CASH";
+    if (["CASH", "QR"].includes(paymentData.checkInPaymentMode)) {
+      booking.checkInPaymentMode = paymentData.checkInPaymentMode;
       booking.remainingAmountPaid = paymentData.remainingAmountPaid;
       booking.cashCollectedBy = paymentData.clerkId;
       booking.paymentStatus = "COMPLETED";

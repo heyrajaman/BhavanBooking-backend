@@ -33,6 +33,31 @@ export class BookingController {
   };
 
   /**
+   * STAFF: Creates a booking on behalf of a walk-in customer.
+   */
+  createBookingOnBehalf = async (req, res, next) => {
+    // 1. Grab the clerk's ID for audit purposes
+    const clerkId = req.user.id;
+
+    // 2. Grab the combined user & booking payload
+    const bookingData = req.body;
+
+    // 3. Pass to the service to handle user creation and booking generation
+    const { newBooking, user, isNewUser } =
+      await this.bookingService.createBookingOnBehalf(bookingData, clerkId);
+
+    // 4. Format the response
+    const formattedBooking = new BookingResponseDto(newBooking);
+
+    return res.status(201).json({
+      success: true,
+      message: `Booking created successfully for ${user.fullName}. It is now PENDING_ADMIN_APPROVAL.`,
+      isNewUser: isNewUser, // Tells the frontend if they need to inform the user about an account being created
+      data: formattedBooking,
+    });
+  };
+
+  /**
    * Handles the request to fetch unavailable dates for a facility's calendar.
    */
   getUnavailableDates = async (req, res, next) => {
@@ -140,20 +165,20 @@ export class BookingController {
     if (booking.paymentStatus !== "COMPLETED") {
       if (
         booking.paymentStatus === "PARTIAL" &&
-        checkInPaymentMode === "CASH"
+        ["CASH", "QR"].includes(checkInPaymentMode)
       ) {
         if (!remainingAmountPaid || Number(remainingAmountPaid) <= 0) {
           return res.status(400).json({
             success: false,
             message:
-              "You must enter the remaining cash amount collected to proceed.",
+              "You must enter the remaining amount collected to proceed.",
           });
         }
       } else {
         return res.status(400).json({
           success: false,
           message:
-            "Guest cannot be checked in! They must pay the remaining balance online, or you must record a CASH payment.",
+            "Guest cannot be checked in! They must pay online, or you must record a CASH/QR payment.",
         });
       }
     }

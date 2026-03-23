@@ -7,6 +7,26 @@ export class PaymentController {
   }
 
   /**
+   * STAFF: Records an offline (Cash/QR) advance payment
+   */
+  verifyOfflineAdvance = async (req, res, next) => {
+    const clerkId = req.user.id;
+    const paymentData = req.body;
+
+    const confirmedBooking =
+      await this.paymentService.verifyOfflineAdvancePayment(
+        clerkId,
+        paymentData,
+      );
+
+    return res.status(200).json({
+      success: true,
+      message: `Offline advance payment recorded successfully. Booking is now CONFIRMED!`,
+      data: confirmedBooking,
+    });
+  };
+
+  /**
    * Handles the request to create a Razorpay order for the advance payment
    */
   createAdvanceOrder = async (req, res, next) => {
