@@ -1,6 +1,17 @@
 // src/seeders/facility.seed.js
 import Facility from "../modules/facility/model/facility.model.js";
 import sequelize from "../config/database.js";
+import { uploadSeedImageToMinio } from "../utils/minioUpload.js";
+import path from "path";
+import fs from "fs";
+import { fileURLToPath } from "url";
+
+// Helper to handle __dirname in ES Modules
+const __filename = fileURLToPath(import.meta.url);
+const __dirname = path.dirname(__filename);
+
+// Define the absolute path to your new uploads folder
+const SEED_IMAGES_DIR = path.join(__dirname, "../uploads/seed-images");
 
 const facilityData = [
   // ==========================================
@@ -14,6 +25,7 @@ const facilityData = [
     baseRate: 25000.0,
     pricingDetails: { is_atomic: true },
     securityDeposit: 10000.0,
+    imageFiles: ["big_hall_1.jpeg", "big_hall_2.jpeg"],
   },
   {
     name: "Dining Hall",
@@ -23,6 +35,7 @@ const facilityData = [
     baseRate: 15000.0,
     pricingDetails: { is_atomic: true },
     securityDeposit: 5000.0,
+    imageFiles: ["dining_hall_1.jpeg"],
   },
   {
     name: "Mini Hall (Capacity 75)",
@@ -33,6 +46,7 @@ const facilityData = [
     baseRate: 12000.0,
     pricingDetails: { base_hours: 5, extra_hour_rate: 3000, is_atomic: true },
     securityDeposit: 25000.0,
+    imageFiles: ["mini_hall_1.jpeg", "mini_hall_2.jpeg"],
   },
   {
     name: "Stage",
@@ -42,6 +56,7 @@ const facilityData = [
     baseRate: 5000.0,
     pricingDetails: { is_atomic: true },
     securityDeposit: 0.0,
+    imageFiles: ["mini_hall_1.jpeg", "mini_hall_2.jpeg"],
   },
   {
     name: "Kitchen",
@@ -51,6 +66,7 @@ const facilityData = [
     baseRate: 8000.0,
     pricingDetails: { is_atomic: true },
     securityDeposit: 5000.0,
+    imageFiles: ["mini_hall_1.jpeg", "mini_hall_2.jpeg"],
   },
   {
     name: "Lawn",
@@ -60,6 +76,7 @@ const facilityData = [
     baseRate: 15000.0,
     pricingDetails: { is_atomic: true },
     securityDeposit: 5000.0,
+    imageFiles: ["lawn_image_1.jpeg"],
   },
   {
     name: "Parking",
@@ -69,6 +86,7 @@ const facilityData = [
     baseRate: 3000.0,
     pricingDetails: { is_atomic: true },
     securityDeposit: 0.0,
+    imageFiles: ["lawn_image_1.jpeg"],
   },
   {
     name: "Day Room (4 Bedded)",
@@ -78,6 +96,7 @@ const facilityData = [
     baseRate: 2500.0,
     pricingDetails: { is_atomic: true },
     securityDeposit: 0.0,
+    imageFiles: ["four_bedroom_1.jpeg", "four_bedroom_2.jpeg"],
   },
   {
     name: "Day Room (Double Bed)",
@@ -87,6 +106,7 @@ const facilityData = [
     baseRate: 1800.0,
     pricingDetails: { is_atomic: true },
     securityDeposit: 0.0,
+    imageFiles: ["double_bedroom_1.jpeg"],
   },
   {
     name: "Extra Mattress",
@@ -96,6 +116,7 @@ const facilityData = [
     baseRate: 600.0,
     pricingDetails: { is_atomic: true },
     securityDeposit: 0.0,
+    imageFiles: ["four_bedroom_1.jpeg", "four_bedroom_2.jpeg"],
   },
   {
     name: "Dormitory (15 persons)",
@@ -105,6 +126,7 @@ const facilityData = [
     baseRate: 8000.0,
     pricingDetails: { is_atomic: true },
     securityDeposit: 0.0,
+    imageFiles: ["four_bedroom_1.jpeg", "four_bedroom_2.jpeg"],
   },
 
   // ==========================================
@@ -133,6 +155,16 @@ const facilityData = [
       ],
     },
     securityDeposit: 25000.0,
+    imageFiles: [
+      "main_bhavan.jpeg",
+      "big_hall_1.jpeg",
+      "big_hall_2.jpeg",
+      "dining_hall_1.jpeg",
+      "double_bedroom_1.jpeg",
+      "lawn_image_1.jpeg",
+      "four_bedroom_1.jpeg",
+      "four_bedroom_2.jpeg",
+    ],
   },
   {
     name: "Main Hall + Stage + 2 Rooms + Dining Hall + Kitchen + Parking (Full Day)",
@@ -151,6 +183,13 @@ const facilityData = [
       ],
     },
     securityDeposit: 25000.0,
+    imageFiles: [
+      "big_hall_1.jpeg",
+      "big_hall_2.jpeg",
+      "mini_hall_1.jpeg",
+      "dining_hall_1.jpeg",
+      "double_bedroom_1.jpeg",
+    ],
   },
   {
     name: "Main Hall + Stage + 2 Rooms (6 hours)",
@@ -163,11 +202,17 @@ const facilityData = [
       included_facilities: ["Big Hall", "Stage", "Standard Room"],
     },
     securityDeposit: 25000.0,
+    imageFiles: [
+      "big_hall_1.jpeg",
+      "big_hall_2.jpeg",
+      "four_bedroom_1.jpeg",
+      "mini_hall_1.jpeg",
+      "four_bedroom_2.jpeg",
+    ],
   },
   {
     name: "Dining Hall + Kitchen + Parking (for 75 persons)",
-    description:
-     `Half Day (8:00 AM – 4:00 PM OR 4:00 PM – 11:00 PM) or Full Day.
+    description: `Half Day (8:00 AM – 4:00 PM OR 4:00 PM – 11:00 PM) or Full Day.
       Half day = ₹25000 
       Full day = ₹40000`,
     facilityType: "PACKAGE",
@@ -179,6 +224,7 @@ const facilityData = [
       included_facilities: ["Dining Hall", "Kitchen", "Parking"],
     },
     securityDeposit: 25000.0,
+    imageFiles: ["dining_hall_1.jpeg"],
   },
   {
     name: "Lawn + Kitchen + Parking",
@@ -190,6 +236,7 @@ const facilityData = [
       included_facilities: ["Lawn", "Kitchen", "Parking"],
     },
     securityDeposit: 25000.0,
+    imageFiles: ["lawn_image_1.jpeg"],
   },
   {
     name: "2 Dormitories",
@@ -201,6 +248,7 @@ const facilityData = [
       included_facilities: ["Dormitory (15 persons)"],
     },
     securityDeposit: 0.0,
+    imageFiles: ["four_bedroom_1.jpeg", "four_bedroom_2.jpeg"],
   },
 ];
 
@@ -211,7 +259,28 @@ const seedFacilities = async () => {
     console.log("Database connected & synced for Facility seeding...");
 
     await Facility.destroy({ where: {} });
-    console.log("Cleared old facilities...");
+
+    for (let facility of facilityData) {
+      const uploadedUrls = [];
+
+      if (facility.imageFiles && facility.imageFiles.length > 0) {
+        for (let fileName of facility.imageFiles) {
+          // Construct the full path to the file in uploads/seed-images
+          const localPath = path.join(SEED_IMAGES_DIR, fileName);
+
+          if (fs.existsSync(localPath)) {
+            const uniqueName = `${facility.name.replace(/\s+/g, "-").toLowerCase()}-${Date.now()}${path.extname(fileName)}`;
+            const url = await uploadSeedImageToMinio(localPath, uniqueName);
+            uploadedUrls.push(url);
+          } else {
+            console.warn(`⚠️ File not found: ${localPath}`);
+          }
+        }
+      }
+
+      facility.images = uploadedUrls;
+      delete facility.imageFiles;
+    }
 
     await Facility.bulkCreate(facilityData);
 
