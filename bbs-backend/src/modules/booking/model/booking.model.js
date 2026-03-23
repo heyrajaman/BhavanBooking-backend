@@ -102,6 +102,19 @@ export default class Booking extends Model {
           type: DataTypes.ENUM("PENDING", "PARTIAL", "COMPLETED", "REFUNDED"),
           defaultValue: "PENDING",
         },
+        refundAmount: {
+          type: DataTypes.DECIMAL(10, 2),
+          allowNull: true,
+          defaultValue: 0.0,
+        },
+        cancelledAt: {
+          type: DataTypes.DATE,
+          allowNull: true,
+        },
+        cancellationReason: {
+          type: DataTypes.STRING(255),
+          allowNull: true,
+        },
       },
       {
         sequelize,
@@ -123,6 +136,11 @@ export default class Booking extends Model {
     Booking.belongsTo(models.User, {
       foreignKey: "cashCollectedBy",
       as: "cashVerifier",
+    });
+
+    Booking.hasOne(models.Invoice, {
+      foreignKey: "bookingId",
+      as: "invoice",
     });
   }
 }

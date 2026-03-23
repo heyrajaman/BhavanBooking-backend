@@ -113,3 +113,11 @@ export const CreateBookingOnBehalfDto = Joi.object({
       "Either a main Facility ID or custom facilities must be provided.",
   })
   .options({ stripUnknown: true });
+
+export const CancelBookingDto = Joi.object({
+  cancellationReason: Joi.string().max(255).optional().allow(null, ""),
+});
+
+export const CompleteManualRefundDto = Joi.object({
+  refundNote: Joi.string().max(255).optional().allow(null, ""),
+});

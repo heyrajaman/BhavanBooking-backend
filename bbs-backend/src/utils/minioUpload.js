@@ -6,7 +6,9 @@ const env = process.env;
 
 export async function uploadSeedImageToMinio(localFilePath, fileName) {
   // Use the new bucket from your environment variables
-  const bucketName = env.FACILITY_BUCKET_NAME || "facilities";
+  const bucketName = env.MINIO_BUCKET_NAME;
+
+  const objectName = `seed-images/${fileName}`;
 
   try {
     // 1. Check if the bucket exists
@@ -23,7 +25,7 @@ export async function uploadSeedImageToMinio(localFilePath, fileName) {
             Action: ["s3:GetObject"],
             Effect: "Allow",
             Principal: { AWS: ["*"] },
-            Resource: [`arn:aws:s3:::${bucketName}/*`],
+            Resource: [`arn:aws:s3:::${bucketName}/seed-images/*`],
           },
         ],
       };
@@ -34,10 +36,14 @@ export async function uploadSeedImageToMinio(localFilePath, fileName) {
     const metaData = {
       "Content-Type": "image/jpeg",
     };
-    await minioClient.fPutObject(bucketName, fileName, localFilePath, metaData);
-
+    await minioClient.fPutObject(
+      bucketName,
+      objectName,
+      localFilePath,
+      metaData,
+    );
     // 3. Construct the URL using your env variables
-    const imageUrl = `http://${env.MINIO_ENDPOINT}:${env.MINIO_PORT}/${bucketName}/${fileName}`;
+    const imageUrl = `http://${env.MINIO_ENDPOINT}:${env.MINIO_PORT}/${bucketName}/${objectName}`;
 
     return imageUrl;
   } catch (error) {

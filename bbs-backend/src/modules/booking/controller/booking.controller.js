@@ -192,7 +192,7 @@ export class BookingController {
     }
 
     // 2. Upload the file to MinIO
-    const aadharFileName = await uploadFileToMinio(req.file);
+    const aadharFileName = await uploadFileToMinio(req.file, "aadhar-images");
 
     // 3. Pass the generated filename to the service
     const checkedInBooking = await this.bookingService.checkInBooking(
@@ -264,6 +264,56 @@ export class BookingController {
       success: true,
       message: "Report generated successfully.",
       data: reportData,
+    });
+  };
+
+  getCancellationPolicy = async (req, res) => {
+    const policy = await this.bookingService.getCancellationPolicy();
+
+    res.status(200).json({
+      success: true,
+      data: policy,
+    });
+  };
+
+  cancelBooking = async (req, res) => {
+    // 1. Extract data
+    const bookingId = req.params.bookingId;
+    const userId = req.user.id;
+    const userRole = req.user.role;
+    const { cancellationReason } = req.body;
+
+    // 2. Call the service layer
+    const result = await this.bookingService.cancelBooking(
+      bookingId,
+      userId,
+      userRole,
+      cancellationReason,
+    );
+
+    // 3. Send response
+    res.status(200).json({
+      success: true,
+      message: "Booking cancelled successfully",
+      data: result,
+    });
+  };
+
+  completeManualRefund = async (req, res) => {
+    const bookingId = req.params.bookingId;
+    const staffId = req.user.id;
+    const { refundNote } = req.body;
+
+    const result = await this.bookingService.completeManualRefund(
+      bookingId,
+      staffId,
+      refundNote,
+    );
+
+    res.status(200).json({
+      success: true,
+      message: "Refund status updated to completed.",
+      data: result,
     });
   };
 }

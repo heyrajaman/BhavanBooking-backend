@@ -7,6 +7,8 @@ import {
   CreateBookingDto,
   generateReportDto,
   CreateBookingOnBehalfDto,
+  CancelBookingDto,
+  CompleteManualRefundDto,
 } from "../dto/booking.request.dto.js";
 import { catchAsync } from "../../../utils/catchAsync.js";
 import { protect, restrictTo } from "../../../middlewares/auth.middleware.js";
@@ -60,6 +62,30 @@ router.post(
   restrictTo("CLERK", "ADMIN"), // Only staff can do this
   validateDto(CreateBookingOnBehalfDto),
   catchAsync(bookingController.createBookingOnBehalf),
+);
+
+// GET /api/v1/bookings/cancellation-policy - Public route for the frontend to display rules
+router.get(
+  "/cancellation-policy",
+  catchAsync(bookingController.getCancellationPolicy),
+);
+
+// PATCH /api/v1/bookings/:id/cancel - User cancels their own booking
+router.patch(
+  "/:bookingId/cancel",
+  protect, // Ensure user is logged in
+  validateDto(UuidParamDto, "params"), // Validate the booking ID from the URL
+  validateDto(CancelBookingDto, "body"), // Validate the optional reason
+  catchAsync(bookingController.cancelBooking),
+);
+
+router.patch(
+  "/:bookingId/complete-manual-refund",
+  protect,
+  restrictTo("CLERK", "ADMIN"), // Only staff can confirm cash was handed over
+  validateDto(UuidParamDto, "params"),
+  validateDto(CompleteManualRefundDto, "body"),
+  catchAsync(bookingController.completeManualRefund),
 );
 
 // PATCH /api/v1/bookings/:bookingId/check-in - Staff checks in a guest
