@@ -21,10 +21,12 @@ export const validateDto = (schema, source = "body") => {
       return next(new AppError(errorMessage, 400));
     }
 
-    // Replace the request data with the validated value.
-    // Because we used .options({ stripUnknown: true }) in our DTOs,
-    // this also safely removes any extra malicious fields!
-    req[source] = value;
+Object.defineProperty(req, source, {
+  value: value,
+  writable: true,
+  enumerable: true,
+  configurable: true
+});
 
     next();
   };
