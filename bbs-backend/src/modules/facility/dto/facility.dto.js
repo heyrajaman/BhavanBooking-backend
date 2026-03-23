@@ -7,6 +7,13 @@ export const CreateFacilityDto = Joi.object({
     "any.required": "Facility name is required.",
   }),
   description: Joi.string().trim().max(500).optional(),
+  images: Joi.array()
+    .items(Joi.string().uri())
+    .optional()
+    .default([])
+    .messages({
+      "string.uri": "Each image must be a valid URL.",
+    }),
   facilityType: Joi.string()
     .valid("ROOM", "HALL", "LAWN", "CUSTOM")
     .required()

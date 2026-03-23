@@ -17,6 +17,11 @@ export default class Facility extends Model {
           type: DataTypes.TEXT,
           allowNull: true,
         },
+        images: {
+          type: DataTypes.JSON,
+          allowNull: true,
+          defaultValue: [],
+        },
         facilityType: {
           // Added 'PACKAGE' and 'ITEM' to cover the Complete Bhavan and Mattress/Extra Bed
           type: DataTypes.ENUM(
