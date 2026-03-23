@@ -21,13 +21,12 @@ export const validateDto = (schema, source = "body") => {
       return next(new AppError(errorMessage, 400));
     }
 
-    // ✅ THE FIX: Safely overwrite the property
-    Object.defineProperty(req, source, {
-      value: value,
-      writable: true,
-      enumerable: true,
-      configurable: true,
-    });
+Object.defineProperty(req, source, {
+  value: value,
+  writable: true,
+  enumerable: true,
+  configurable: true
+});
 
     next();
   };

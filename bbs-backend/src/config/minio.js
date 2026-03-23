@@ -49,8 +49,10 @@ export const uploadFileToMinio = async (file) => {
       metaData,
     );
 
-    // Return the file path (you can later construct a full URL or pre-signed URL to view it)
-    return fileName;
+    const protocol = process.env.MINIO_USE_SSL === "true" ? "https" : "http";
+    const port = process.env.MINIO_PORT ? `:${process.env.MINIO_PORT}` : "";
+    const fullUrl = `${protocol}://${process.env.MINIO_ENDPOINT}${port}/${bucketName}/${fileName}`;
+    return fullUrl; // Return the full URL to be stored in the database
   } catch (error) {
     console.error("MinIO Upload Error:", error);
     throw new AppError("Failed to upload Aadhar image to storage server.", 500);
