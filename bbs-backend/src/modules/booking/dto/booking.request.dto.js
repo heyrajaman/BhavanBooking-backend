@@ -71,11 +71,45 @@ export const generateReportDto = Joi.object({
 });
 
 export const CheckInDto = Joi.object({
-  remainingAmountPaid: Joi.number().min(0).optional().messages({
-    "number.base": "Remaining amount must be a valid number.",
-    "number.min": "Amount cannot be negative.",
-  }),
-  checkInPaymentMode: Joi.string().valid("ONLINE", "CASH").optional().messages({
-    "any.only": "Payment mode must be either ONLINE or CASH.",
-  }),
+  remainingAmountPaid: Joi.number().min(0).optional(),
+  checkInPaymentMode: Joi.string().valid("ONLINE", "CASH", "QR").optional(), // <-- Added QR
 });
+
+// Add this at the bottom of booking.request.dto.js
+export const CreateBookingOnBehalfDto = Joi.object({
+  // --- USER DETAILS ---
+  fullName: Joi.string().trim().required().messages({
+    "any.required": "Customer's full name is required.",
+  }),
+  mobile: Joi.string()
+    .pattern(/^[6-9]\d{9}$/)
+    .required()
+    .messages({
+      "string.pattern.base": "Must be a valid 10-digit Indian mobile number.",
+      "any.required": "Customer's mobile number is required.",
+    }),
+  email: Joi.string().email().trim().lowercase().optional().allow(null, ""),
+  address: Joi.string().trim().optional().allow(null, ""),
+
+  // --- BOOKING DETAILS ---
+  facilityId: Joi.string().uuid().optional(),
+  customFacilities: Joi.array()
+    .items(
+      Joi.object({
+        facilityId: Joi.string().uuid().required(),
+        quantity: Joi.number().integer().min(1).required(),
+      }),
+    )
+    .optional(),
+
+  startTime: Joi.date().iso().min("now").required(),
+  endTime: Joi.date().iso().greater(Joi.ref("startTime")).required(),
+  eventType: Joi.string().trim().required(),
+  guestCount: Joi.number().integer().min(1).required(),
+})
+  .or("facilityId", "customFacilities")
+  .messages({
+    "object.missing":
+      "Either a main Facility ID or custom facilities must be provided.",
+  })
+  .options({ stripUnknown: true });

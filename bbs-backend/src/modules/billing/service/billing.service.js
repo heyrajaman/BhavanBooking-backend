@@ -128,7 +128,9 @@ export class BillingService {
 
     const settlementMode = dto.settlementMode || "ONLINE";
 
-    const dueDate = settlementMode === "CASH" ? new Date() : dto.dueDate;
+    const dueDate = ["CASH", "QR"].includes(settlementMode)
+      ? new Date()
+      : dto.dueDate;
 
     // --- 7. Save or Update ---
     if (existingInvoice) {
@@ -277,10 +279,10 @@ export class BillingService {
 
     if (invoice.finalRefundAmount > 0) {
       // --- NEW: CASH REFUND LOGIC ---
-      if (invoice.settlementMode === "CASH") {
+      if (["CASH", "QR"].includes(invoice.settlementMode)) {
         approvalMessage += ` Manual CASH refund of ₹${invoice.finalRefundAmount} to be handed to customer.`;
         invoice.adminRemarks = approvalMessage;
-        invoice.paymentStatus = "REFUNDED"; // Mark as fully refunded since cash was handed over
+        invoice.paymentStatus = "REFUNDED";
       }
       // --- EXISTING: ONLINE REFUND LOGIC ---
       else {
@@ -307,7 +309,7 @@ export class BillingService {
       }
     } else if (invoice.additionalBalanceDue > 0) {
       // NEW: Log cash collection if user owes money
-      if (invoice.settlementMode === "CASH") {
+      if (["CASH", "QR"].includes(invoice.settlementMode)) {
         approvalMessage += ` Additional CASH payment of ₹${invoice.additionalBalanceDue} collected at check-out.`;
         invoice.adminRemarks = approvalMessage;
         invoice.paymentStatus = "PAID"; // Mark as paid since cash was collected

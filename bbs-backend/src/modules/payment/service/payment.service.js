@@ -12,6 +12,55 @@ export class PaymentService {
   }
 
   /**
+   * STAFF: Verifies and logs an offline advance payment (Cash/QR)
+   */
+  async verifyOfflineAdvancePayment(clerkId, paymentData) {
+    const { bookingId, paymentMode, amountCollected } = paymentData;
+
+    const booking = await this.bookingRepository.findById(bookingId);
+    if (!booking) throw new AppError("Booking not found", 404);
+
+    if (booking.status !== "PENDING_ADVANCE_PAYMENT") {
+      throw new AppError(
+        `Cannot record advance payment. Booking status is ${booking.status}.`,
+        400,
+      );
+    }
+
+    // Ensure the clerk actually collected enough money
+    if (Number(amountCollected) < Number(booking.advanceAmountRequested)) {
+      throw new AppError(
+        `Collected amount (₹${amountCollected}) is less than the requested advance (₹${booking.advanceAmountRequested}).`,
+        400,
+      );
+    }
+
+    // Update the Booking Status to CONFIRMED and record the offline details
+    booking.paymentStatus = "PARTIAL";
+    booking.status = "CONFIRMED";
+    booking.advancePaymentMode = paymentMode; // "CASH" or "QR"
+    booking.advanceCollectedBy = clerkId;
+
+    await booking.save();
+
+    try {
+      const user = await booking.getUser();
+      if (user && user.email) {
+        // Fire and forget email notification
+        this.notificationService
+          .sendBookingConfirmationEmail(user.email, user.fullName, booking.id)
+          .catch((err) =>
+            console.error("Email failed, but booking confirmed:", err),
+          );
+      }
+    } catch (err) {
+      console.error("Failed to fetch user for confirmation email", err);
+    }
+
+    return booking;
+  }
+
+  /**
    * 1. Creates a Razorpay order for the initial Advance Payment
    */
   async createAdvancePaymentOrder(userId, bookingId) {

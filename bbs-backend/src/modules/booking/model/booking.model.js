@@ -82,8 +82,16 @@ export default class Booking extends Model {
           allowNull: true,
           defaultValue: 0.0,
         },
+        advancePaymentMode: {
+          type: DataTypes.ENUM("ONLINE", "CASH", "QR"),
+          defaultValue: "ONLINE",
+        },
+        advanceCollectedBy: {
+          type: DataTypes.UUID,
+          allowNull: true,
+        },
         checkInPaymentMode: {
-          type: DataTypes.ENUM("ONLINE", "CASH"),
+          type: DataTypes.ENUM("ONLINE", "CASH", "QR"),
           allowNull: true,
         },
         cashCollectedBy: {

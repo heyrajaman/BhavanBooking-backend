@@ -44,7 +44,7 @@ export const generateInvoiceDto = Joi.object({
       otherwise: Joi.allow(null, ""),
     }),
 
-  settlementMode: Joi.string().valid("ONLINE", "CASH").default("ONLINE"),
+  settlementMode: Joi.string().valid("ONLINE", "CASH", "QR").default("ONLINE"),
 
   dueDate: Joi.date()
     .iso()
