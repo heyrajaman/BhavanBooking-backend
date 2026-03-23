@@ -69,3 +69,13 @@ export const generateReportDto = Joi.object({
     "any.required": "toDate is required to generate a report",
   }),
 });
+
+export const CheckInDto = Joi.object({
+  remainingAmountPaid: Joi.number().min(0).optional().messages({
+    "number.base": "Remaining amount must be a valid number.",
+    "number.min": "Amount cannot be negative.",
+  }),
+  checkInPaymentMode: Joi.string().valid("ONLINE", "CASH").optional().messages({
+    "any.only": "Payment mode must be either ONLINE or CASH.",
+  }),
+});

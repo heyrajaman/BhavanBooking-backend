@@ -15,6 +15,11 @@ export default class Invoice extends Model {
           unique: true,
           allowNull: false, // e.g., 'INV-2026-0001'
         },
+        invoiceType: {
+          type: DataTypes.ENUM("GENERAL", "DONATION"),
+          defaultValue: "GENERAL",
+          allowNull: false,
+        },
         bookingId: {
           type: DataTypes.UUID,
           allowNull: false,
@@ -142,6 +147,11 @@ export default class Invoice extends Model {
           type: DataTypes.DECIMAL(10, 2),
           allowNull: false,
           defaultValue: 0.0,
+        },
+        settlementMode: {
+          type: DataTypes.ENUM("ONLINE", "CASH"),
+          allowNull: false,
+          defaultValue: "ONLINE", // Default to online for safety
         },
 
         // --- Statuses ---

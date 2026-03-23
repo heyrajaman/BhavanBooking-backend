@@ -3,6 +3,7 @@ import { Router } from "express";
 import { BookingController } from "../controller/booking.controller.js";
 import { validateDto } from "../../../middlewares/validate.js";
 import {
+  CheckInDto,
   CreateBookingDto,
   generateReportDto,
 } from "../dto/booking.request.dto.js";
@@ -59,6 +60,7 @@ router.patch(
   restrictTo("CLERK", "ADMIN"),
   validateDto(UuidParamDto, "params"),
   uploadImage.single("aadharImage"),
+  validateDto(CheckInDto, "body"),
   catchAsync(bookingController.checkInBooking),
 );
 

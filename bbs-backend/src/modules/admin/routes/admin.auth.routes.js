@@ -30,7 +30,7 @@ router.patch(
   "/upload-signature",
   protect,
   restrictTo("ADMIN"),
-  uploadImage.single("signature"), // "signature" is the key your frontend will use in the form-data
+  uploadImage.single("signature"),
   catchAsync(adminController.uploadSignature),
 );
 

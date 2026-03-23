@@ -19,10 +19,20 @@ export class BookingResponseDto {
       securityDeposit: bookingModel.securityDeposit,
       advanceAmountRequested: bookingModel.advanceAmountRequested,
       paymentStatus: bookingModel.paymentStatus,
+      remainingAmountPaid: bookingModel.remainingAmountPaid
+        ? Number(bookingModel.remainingAmountPaid)
+        : 0,
+      checkInPaymentMode: bookingModel.checkInPaymentMode || null,
     };
 
     this.verification = {
       aadharImageUrl: bookingModel.aadharImageUrl || null,
+      cashCollectedBy: bookingModel.cashVerifier
+        ? {
+            id: bookingModel.cashVerifier.id,
+            name: bookingModel.cashVerifier.fullName,
+          }
+        : bookingModel.cashCollectedBy || null,
     };
 
     if (bookingModel.user) {
@@ -48,7 +58,6 @@ export class BookingResponseDto {
         facilityType: facility.facilityType,
       };
     } else if (this.customDetails && this.customDetails.length > 0) {
-      // Create a virtual facility object for custom bookings so the frontend doesn't break
       const itemNames = this.customDetails
         .map((item) => `${item.name} (x${item.quantity})`)
         .join(", ");
@@ -83,10 +92,20 @@ export class BookingDetailResponseDto {
       securityDeposit: booking.securityDeposit,
       advanceRequested: booking.advanceAmountRequested,
       paymentStatus: booking.paymentStatus,
+      remainingAmountPaid: booking.remainingAmountPaid
+        ? Number(booking.remainingAmountPaid)
+        : 0,
+      checkInPaymentMode: booking.checkInPaymentMode || null,
     };
 
     this.verification = {
       aadharImageUrl: booking.aadharImageUrl || null,
+      cashCollectedBy: booking.cashVerifier
+        ? {
+            id: booking.cashVerifier.id,
+            name: booking.cashVerifier.fullName,
+          }
+        : booking.cashCollectedBy || null,
     };
 
     // 1. ADD CUSTOM DETAILS
