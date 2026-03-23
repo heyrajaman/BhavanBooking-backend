@@ -44,8 +44,17 @@ export const generateInvoiceDto = Joi.object({
       otherwise: Joi.allow(null, ""),
     }),
 
-  dueDate: Joi.date().iso().min("now").required(),
+  settlementMode: Joi.string().valid("ONLINE", "CASH").default("ONLINE"),
 
+  dueDate: Joi.date()
+    .iso()
+    .when("settlementMode", {
+      is: "ONLINE",
+      then: Joi.date().min("now").required().messages({
+        "any.required": "A future due date is required for online settlements.",
+      }),
+      otherwise: Joi.date().optional(),
+    }),
   // baseAmount is GONE!
   discountAmount: Joi.number().min(0).default(0),
 

@@ -126,9 +126,13 @@ export class BillingService {
       additionalBalanceDue = parseFloat(Math.abs(netDifference).toFixed(2));
     }
 
+    const settlementMode = dto.settlementMode || "ONLINE";
+
+    const dueDate = settlementMode === "CASH" ? new Date() : dto.dueDate;
+
     // --- 7. Save or Update ---
     if (existingInvoice) {
-      // Use the trusted DB values instead of DTO
+      existingInvoice.settlementMode = settlementMode;
       existingInvoice.invoiceType = invoiceType;
       existingInvoice.userId = userId;
       existingInvoice.customerName = customerName;
@@ -136,7 +140,7 @@ export class BillingService {
       existingInvoice.customerPhone = customerPhone;
 
       existingInvoice.billingAddress = dto.billingAddress;
-      existingInvoice.dueDate = dto.dueDate;
+      existingInvoice.dueDate = dueDate;
 
       existingInvoice.baseAmount = baseAmount;
       existingInvoice.additionalItems = additionalItems;
@@ -170,6 +174,7 @@ export class BillingService {
     const draftInvoice = await Invoice.create({
       invoiceNumber,
       invoiceType,
+      settlementMode,
       bookingId: dto.bookingId,
       userId: userId,
       generatedBy: clerkId,
@@ -179,7 +184,7 @@ export class BillingService {
       customerPhone: customerPhone,
 
       billingAddress: dto.billingAddress,
-      dueDate: dto.dueDate,
+      dueDate: dueDate,
 
       baseAmount,
       additionalItems,
@@ -271,31 +276,48 @@ export class BillingService {
     let approvalMessage = "Approved successfully."; // Base message
 
     if (invoice.finalRefundAmount > 0) {
-      if (!booking.razorpayPaymentId) {
-        invoice.adminRemarks =
-          "Approved successfully. Manual refund required (No Payment ID found).";
-      } else {
-        try {
-          // Trigger the Razorpay Refund via PaymentService
-          const refundResponse = await this.paymentService.processRefund(
-            booking.razorpayPaymentId,
-            invoice.finalRefundAmount,
-          );
-          refundDetails = refundResponse.id;
-          approvalMessage += ` Automatic refund initiated (Refund ID: ${refundDetails}).`;
-          invoice.adminRemarks = approvalMessage;
-        } catch (error) {
-          console.warn(
-            "⚠️ Auto-refund failed, switching to manual mode:",
-            error.message,
-          );
-          approvalMessage +=
-            " ⚠️ Auto-refund failed. MARKED FOR MANUAL REFUND.";
-          invoice.adminRemarks = `Manual refund of ₹${invoice.finalRefundAmount} required. (Reason: API Error/Mock ID)`;
+      // --- NEW: CASH REFUND LOGIC ---
+      if (invoice.settlementMode === "CASH") {
+        approvalMessage += ` Manual CASH refund of ₹${invoice.finalRefundAmount} to be handed to customer.`;
+        invoice.adminRemarks = approvalMessage;
+        invoice.paymentStatus = "REFUNDED"; // Mark as fully refunded since cash was handed over
+      }
+      // --- EXISTING: ONLINE REFUND LOGIC ---
+      else {
+        if (!booking.razorpayPaymentId) {
+          invoice.adminRemarks =
+            "Approved successfully. Manual refund required (No Payment ID found).";
+        } else {
+          try {
+            const refundResponse = await this.paymentService.processRefund(
+              booking.razorpayPaymentId,
+              invoice.finalRefundAmount,
+            );
+            refundDetails = refundResponse.id;
+            approvalMessage += ` Automatic online refund initiated (Refund ID: ${refundDetails}).`;
+            invoice.adminRemarks = approvalMessage;
+            invoice.paymentStatus = "REFUNDED";
+          } catch (error) {
+            console.warn("⚠️ Auto-refund failed:", error.message);
+            approvalMessage +=
+              " ⚠️ Auto-refund failed. MARKED FOR MANUAL REFUND.";
+            invoice.adminRemarks = `Manual refund of ₹${invoice.finalRefundAmount} required. (API Error)`;
+          }
         }
       }
+    } else if (invoice.additionalBalanceDue > 0) {
+      // NEW: Log cash collection if user owes money
+      if (invoice.settlementMode === "CASH") {
+        approvalMessage += ` Additional CASH payment of ₹${invoice.additionalBalanceDue} collected at check-out.`;
+        invoice.adminRemarks = approvalMessage;
+        invoice.paymentStatus = "PAID"; // Mark as paid since cash was collected
+      } else {
+        invoice.adminRemarks =
+          "Approved successfully. Awaiting online payment of remaining balance.";
+      }
     } else {
-      invoice.adminRemarks = "Approved successfully. No refund due.";
+      invoice.adminRemarks = "Approved successfully. No refund or balance due.";
+      invoice.paymentStatus = "PAID";
     }
 
     // 2. Save Invoice Status

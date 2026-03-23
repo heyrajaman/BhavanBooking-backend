@@ -77,6 +77,19 @@ export default class Booking extends Model {
           type: DataTypes.STRING,
           allowNull: true, // We will fill this when the user successfully pays
         },
+        remainingAmountPaid: {
+          type: DataTypes.DECIMAL(10, 2),
+          allowNull: true,
+          defaultValue: 0.0,
+        },
+        checkInPaymentMode: {
+          type: DataTypes.ENUM("ONLINE", "CASH"),
+          allowNull: true,
+        },
+        cashCollectedBy: {
+          type: DataTypes.UUID,
+          allowNull: true,
+        },
         paymentStatus: {
           type: DataTypes.ENUM("PENDING", "PARTIAL", "COMPLETED", "REFUNDED"),
           defaultValue: "PENDING",
@@ -97,6 +110,11 @@ export default class Booking extends Model {
     Booking.belongsTo(models.Facility, {
       foreignKey: "facilityId",
       as: "facility",
+    });
+
+    Booking.belongsTo(models.User, {
+      foreignKey: "cashCollectedBy",
+      as: "cashVerifier",
     });
   }
 }

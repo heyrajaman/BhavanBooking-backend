@@ -119,6 +119,8 @@ export class BookingController {
    */
   checkInBooking = async (req, res, next) => {
     const { bookingId } = req.params;
+    const clerkId = req.user.id;
+    const { remainingAmountPaid, checkInPaymentMode } = req.body;
 
     const booking = await Booking.findByPk(bookingId);
 
@@ -136,11 +138,24 @@ export class BookingController {
     }
 
     if (booking.paymentStatus !== "COMPLETED") {
-      return res.status(400).json({
-        success: false,
-        message:
-          "Guest cannot be checked in! They must pay the remaining balance first.",
-      });
+      if (
+        booking.paymentStatus === "PARTIAL" &&
+        checkInPaymentMode === "CASH"
+      ) {
+        if (!remainingAmountPaid || Number(remainingAmountPaid) <= 0) {
+          return res.status(400).json({
+            success: false,
+            message:
+              "You must enter the remaining cash amount collected to proceed.",
+          });
+        }
+      } else {
+        return res.status(400).json({
+          success: false,
+          message:
+            "Guest cannot be checked in! They must pay the remaining balance online, or you must record a CASH payment.",
+        });
+      }
     }
 
     // 1. Enforce that the image was actually provided
@@ -158,6 +173,11 @@ export class BookingController {
     const checkedInBooking = await this.bookingService.checkInBooking(
       bookingId,
       aadharFileName,
+      {
+        checkInPaymentMode,
+        remainingAmountPaid,
+        clerkId,
+      },
     );
 
     // Format response (Assuming BookingResponseDto handles the new fields)

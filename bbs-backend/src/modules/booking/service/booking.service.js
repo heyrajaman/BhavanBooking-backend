@@ -395,7 +395,7 @@ export class BookingService {
   }
 
   // Update the method signature
-  async checkInBooking(bookingId, aadharFileName) {
+  async checkInBooking(bookingId, aadharFileName, paymentData = {}) {
     const booking = await this.bookingRepository.findById(bookingId);
 
     if (!booking) {
@@ -413,6 +413,13 @@ export class BookingService {
     booking.status = "CHECKED_IN";
     booking.actualCheckInTime = new Date();
     booking.aadharImageUrl = aadharFileName;
+
+    if (paymentData.checkInPaymentMode === "CASH") {
+      booking.checkInPaymentMode = "CASH";
+      booking.remainingAmountPaid = paymentData.remainingAmountPaid;
+      booking.cashCollectedBy = paymentData.clerkId;
+      booking.paymentStatus = "COMPLETED";
+    }
 
     await booking.save();
 
