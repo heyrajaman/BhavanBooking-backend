@@ -390,6 +390,7 @@ export class BillingService {
       include: [
         {
           model: Booking,
+          as: "booking",
           where: { userId }, // This ensures User A can't see User B's invoice
           attributes: ["id", "status"],
         },
