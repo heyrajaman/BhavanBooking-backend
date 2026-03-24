@@ -28,7 +28,7 @@ export const initMinio = async () => {
 };
 
 // Function to upload the Multer file buffer directly to MinIO
-export const uploadFileToMinio = async (file) => {
+export const uploadFileToMinio = async (file, folderName = "uploads") => {
   if (!file) return null;
 
   // Generate a unique filename to prevent overwrites
