@@ -26,7 +26,8 @@ export class BookingResponseDto {
     };
 
     this.verification = {
-      aadharImageUrl: bookingModel.aadharImageUrl || null,
+      aadharFrontImageUrl: bookingModel.aadharFrontImageUrl || null,
+      aadharBackImageUrl: bookingModel.aadharBackImageUrl || null,
       cashCollectedBy: bookingModel.cashVerifier
         ? {
             id: bookingModel.cashVerifier.id,
@@ -99,7 +100,8 @@ export class BookingDetailResponseDto {
     };
 
     this.verification = {
-      aadharImageUrl: booking.aadharImageUrl || null,
+      aadharFrontImageUrl: booking.aadharFrontImageUrl || null,
+      aadharBackImageUrl: booking.aadharBackImageUrl || null,
       cashCollectedBy: booking.cashVerifier
         ? {
             id: booking.cashVerifier.id,
