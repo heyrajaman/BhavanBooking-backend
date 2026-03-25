@@ -64,6 +64,29 @@ router.post(
   catchAsync(bookingController.createBookingOnBehalf),
 );
 
+router.post(
+  "/:bookingId/upload-aadhaar",
+  protect,
+  restrictTo("USER"),
+  uploadImage.fields([
+    { name: "frontImage", maxCount: 1 },
+    { name: "backImage", maxCount: 1 },
+  ]),
+  catchAsync(bookingController.uploadAadhaarDocuments),
+);
+
+// 2. Admin/Clerk Upload Route
+router.patch(
+  "/admin/:bookingId/upload-aadhaar",
+  protect,
+  restrictTo("ADMIN", "CLERK"),
+  uploadImage.fields([
+    { name: "frontImage", maxCount: 1 },
+    { name: "backImage", maxCount: 1 },
+  ]),
+  catchAsync(bookingController.adminUploadAadhaarDocuments),
+);
+
 // GET /api/v1/bookings/cancellation-policy - Public route for the frontend to display rules
 router.get(
   "/cancellation-policy",
@@ -94,7 +117,6 @@ router.patch(
   protect,
   restrictTo("CLERK", "ADMIN"),
   validateDto(UuidParamDto, "params"),
-  uploadImage.single("aadharImage"),
   validateDto(CheckInDto, "body"),
   catchAsync(bookingController.checkInBooking),
 );

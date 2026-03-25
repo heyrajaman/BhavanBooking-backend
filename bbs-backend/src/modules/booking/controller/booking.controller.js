@@ -3,6 +3,7 @@ import { BookingResponseDto } from "../dto/booking.response.dto.js";
 import { BookingService } from "../service/booking.service.js";
 import { uploadFileToMinio } from "../../../config/minio.js";
 import Booking from "../model/booking.model.js";
+import { AppError } from "../../../utils/AppError.js";
 export class BookingController {
   constructor() {
     this.bookingService = new BookingService();
@@ -29,6 +30,82 @@ export class BookingController {
       message:
         "Booking request submitted successfully. It is now pending Clerk review.",
       data: formattedBooking,
+    });
+  };
+
+  uploadAadhaarDocuments = async (req, res, next) => {
+    const userId = req.user.id;
+    const { bookingId } = req.params;
+
+    // Check if Multer successfully parsed the files
+    if (
+      !req.files ||
+      !Array.isArray(req.files.frontImage) ||
+      !Array.isArray(req.files.backImage) ||
+      req.files.frontImage.length === 0 ||
+      req.files.backImage.length === 0
+    ) {
+      throw new AppError(
+        "Both Aadhaar front and back images are required.",
+        400,
+      );
+    }
+
+    const frontFile = req.files.frontImage[0];
+    const backFile = req.files.backImage[0];
+
+    // Call the service (isAdmin = false)
+    const result = await this.bookingService.uploadAadhaarImages(
+      bookingId,
+      userId,
+      frontFile,
+      backFile,
+      false,
+    );
+
+    return res.status(200).json({
+      success: true,
+      message: "Aadhaar documents uploaded and compressed successfully.",
+      data: result,
+    });
+  };
+
+  /**
+   * STAFF: Uploads Aadhaar photos on behalf of a user
+   */
+  adminUploadAadhaarDocuments = async (req, res, next) => {
+    const adminId = req.user.id; // Just for logging if needed
+    const { bookingId } = req.params;
+
+    if (
+      !req.files ||
+      !Array.isArray(req.files.frontImage) ||
+      !Array.isArray(req.files.backImage) ||
+      req.files.frontImage.length === 0 ||
+      req.files.backImage.length === 0
+    ) {
+      throw new AppError(
+        "Both Aadhaar front and back images are required.",
+        400,
+      );
+    }
+
+    const frontFile = req.files.frontImage[0];
+    const backFile = req.files.backImage[0];
+
+    // Call the service (isAdmin = true, so it bypasses the userId ownership check)
+    const result = await this.bookingService.uploadAadhaarImages(
+      bookingId,
+      null,
+      frontFile,
+      backFile,
+      true,
+    );
+
+    return res.status(200).json({
+      success: true,
+      message: "Aadhaar documents updated by staff successfully.",
+      data: result,
     });
   };
 
@@ -183,21 +260,9 @@ export class BookingController {
       }
     }
 
-    // 1. Enforce that the image was actually provided
-    if (!req.file) {
-      return res.status(400).json({
-        success: false,
-        message: "An Aadhar image is strictly required to complete check-in.",
-      });
-    }
-
-    // 2. Upload the file to MinIO
-    const aadharFileName = await uploadFileToMinio(req.file, "aadhar-images");
-
     // 3. Pass the generated filename to the service
     const checkedInBooking = await this.bookingService.checkInBooking(
       bookingId,
-      aadharFileName,
       {
         checkInPaymentMode,
         remainingAmountPaid,

@@ -7,8 +7,8 @@
   "scripts": {
     "start": "node src/server.js",
     "dev": "nodemon src/server.js",
-    "seed": "node src/seeders/admin.seed.js",
-    "seedFacility": "node src/seeders/facility.seed.js"
+    "seed:admin": "node src/seeders/admin.seed.js",
+    "seed:facility": "node src/seeders/facility.seed.js"
   },
   "keywords": [],
   "author": "",
@@ -27,11 +27,11 @@
     "mysql2": "^3.19.0",
     "node-cron": "^4.2.1",
     "nodemailer": "^8.0.1",
-    "puppeteer": "^24.38.0",
+    "puppeteer": "^24.40.0",
     "razorpay": "^2.9.6",
     "sequelize": "^6.37.7",
-    "winston": "^3.19.0",
-    "zod": "^4.3.6"
+    "sharp": "^0.34.5",
+    "winston": "^3.19.0"
   },
   "devDependencies": {
     "nodemon": "^3.1.14"

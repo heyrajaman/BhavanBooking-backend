@@ -32,16 +32,20 @@ export class PaymentController {
   createAdvanceOrder = async (req, res, next) => {
     // req.user is set by your protect middleware
     const userId = req.user.id;
-    const { bookingId } = req.body;
+    const { bookingId, paymentMode } = req.body;
 
     const orderDetails = await this.paymentService.createAdvancePaymentOrder(
       userId,
       bookingId,
+      paymentMode,
     );
 
     return res.status(200).json({
       success: true,
-      message: "Razorpay advance order created successfully",
+      message:
+        paymentMode === "CASH"
+          ? "Cash payment initiated successfully."
+          : "Razorpay advance order created successfully",
       data: orderDetails,
     });
   };

@@ -20,9 +20,24 @@ export class PaymentService {
     const booking = await this.bookingRepository.findById(bookingId);
     if (!booking) throw new AppError("Booking not found", 404);
 
-    if (booking.status !== "PENDING_ADVANCE_PAYMENT") {
+    const validStatuses = ["PENDING_ADVANCE_PAYMENT", "AWAITING_CASH_PAYMENT"];
+    if (!validStatuses.includes(booking.status)) {
       throw new AppError(
-        `Cannot record advance payment. Booking status is ${booking.status}.`,
+        `Cannot record advance payment. Booking is currently in ${booking.status} state.`,
+        400,
+      );
+    }
+
+    const now = new Date();
+    const timeDiffHours =
+      (now - new Date(booking.updatedAt)) / (1000 * 60 * 60);
+
+    if (timeDiffHours > 24) {
+      booking.status = "CANCELLED";
+      booking.cancellationReason = "Advance payment deadline (24h) passed.";
+      await booking.save();
+      throw new AppError(
+        "The 24-hour advance payment deadline has passed. The booking has been auto-cancelled.",
         400,
       );
     }
@@ -46,7 +61,6 @@ export class PaymentService {
     try {
       const user = await booking.getUser();
       if (user && user.email) {
-        // Fire and forget email notification
         this.notificationService
           .sendBookingConfirmationEmail(user.email, user.fullName, booking.id)
           .catch((err) =>
@@ -63,7 +77,7 @@ export class PaymentService {
   /**
    * 1. Creates a Razorpay order for the initial Advance Payment
    */
-  async createAdvancePaymentOrder(userId, bookingId) {
+  async createAdvancePaymentOrder(userId, bookingId, paymentMode = "ONLINE") {
     const booking = await this.bookingRepository.findById(bookingId);
     if (!booking) throw new AppError("Booking not found", 404);
 
@@ -79,6 +93,27 @@ export class PaymentService {
         `Cannot initiate advance payment. Booking status is ${booking.status}.`,
         400,
       );
+    }
+
+    if (!booking.aadharFrontImageUrl || !booking.aadharBackImageUrl) {
+      throw new AppError(
+        "Aadhaar verification required. Please upload both the front and back photos of your Aadhaar card before proceeding with the payment.",
+        400,
+      );
+    }
+
+    if (paymentMode === "CASH") {
+      booking.status = "AWAITING_CASH_PAYMENT";
+      booking.advancePaymentMode = "CASH";
+      await booking.save();
+
+      return {
+        bookingId: booking.id,
+        paymentType: "ADVANCE",
+        paymentMode: "CASH",
+        message:
+          "Please pay the advance amount in cash at the clerk desk within 24 hours to confirm your booking.",
+      };
     }
 
     // Create the Razorpay Order for the Advance Amount
@@ -115,6 +150,7 @@ export class PaymentService {
       currency: order.currency,
       bookingId: booking.id,
       paymentType: "ADVANCE",
+      paymentMode: "ONLINE",
       keyId: process.env.RAZORPAY_KEY_ID,
     };
   }

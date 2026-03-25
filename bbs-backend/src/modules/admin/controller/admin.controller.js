@@ -3,8 +3,6 @@ import {
   BookingResponseDto,
 } from "../../booking/dto/booking.response.dto.js";
 import { AdminService } from "../service/admin.service.js";
-import minioClient from "../../../config/minio.js";
-import User from "../../user/model/user.model.js";
 import { AppError } from "../../../utils/AppError.js";
 
 export class AdminController {
