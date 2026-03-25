@@ -5,13 +5,14 @@ import { BookingService } from "../service/booking.service.js";
 const bookingService = new BookingService();
 
 export const initBookingCronJobs = () => {
+  // Runs every hour at minute 0
   cron.schedule("0 * * * *", async () => {
     try {
-      // Temporarily disabled until we implement the new Razorpay payment expiration flow
-      // await bookingService.processExpiredPayments();
-      console.log("🕒 Cron check ran: Payment expirations currently disabled.");
+      console.log("🕒 Cron check started: Looking for expired payments...");
+      await bookingService.processExpiredPayments();
+      console.log("🕒 Cron check finished.");
     } catch (error) {
-      console.error("[CRON ERROR] Failed to process:", error);
+      console.error("[CRON ERROR] Failed to process expired payments:", error);
     }
   });
 

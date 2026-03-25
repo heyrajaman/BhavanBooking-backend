@@ -44,6 +44,7 @@ export default class Booking extends Model {
             "PENDING_CLERK_REVIEW",
             "PENDING_ADMIN_APPROVAL",
             "PENDING_ADVANCE_PAYMENT",
+            "AWAITING_CASH_PAYMENT",
             "CONFIRMED",
             "CHECKED_IN",
             "CHECKED_OUT",
@@ -57,7 +58,11 @@ export default class Booking extends Model {
           type: DataTypes.DATE,
           allowNull: true,
         },
-        aadharImageUrl: {
+        aadharFrontImageUrl: {
+          type: DataTypes.STRING,
+          allowNull: true,
+        },
+        aadharBackImageUrl: {
           type: DataTypes.STRING,
           allowNull: true,
         },

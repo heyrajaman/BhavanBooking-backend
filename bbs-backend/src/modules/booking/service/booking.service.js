@@ -9,6 +9,8 @@ import User from "../../user/model/user.model.js";
 import bcrypt from "bcrypt";
 import { razorpayInstance } from "../../../config/razorpay.js";
 import Invoice from "../../billing/model/invoice.model.js";
+import sharp from "sharp";
+import minioClient from "../../../config/minio.js";
 
 export class BookingService {
   constructor() {
@@ -34,6 +36,143 @@ export class BookingService {
     });
 
     return { newBooking };
+  }
+
+  async processExpiredPayments() {
+    // Calculate the cutoff time (24 hours ago)
+    const twentyFourHoursAgo = new Date(Date.now() - 24 * 60 * 60 * 1000);
+
+    // Find all active bookings stuck waiting for advance payment
+    const expiredBookings = await Booking.findAll({
+      where: {
+        status: {
+          [Op.in]: ["PENDING_ADVANCE_PAYMENT", "AWAITING_CASH_PAYMENT"],
+        },
+        updatedAt: {
+          [Op.lt]: twentyFourHoursAgo,
+        },
+      },
+    });
+
+    if (expiredBookings.length === 0) {
+      console.log("🕒 No expired advance payments found.");
+      return;
+    }
+
+    // Process cancellations
+    for (const booking of expiredBookings) {
+      try {
+        booking.status = "CANCELLED";
+        booking.cancellationReason =
+          booking.status === "AWAITING_CASH_PAYMENT"
+            ? "Auto-cancelled: Cash payment not marked within 24 hours."
+            : "Auto-cancelled: Online advance payment not received within 24 hours.";
+
+        await booking.save();
+
+        // Optional: Notify user
+        const user = await booking.getUser();
+        if (user && user.email) {
+          // You can add a dedicated email template for this later
+          console.log(
+            `Auto-cancelled booking ${booking.id} for user ${user.email}`,
+          );
+        }
+      } catch (err) {
+        console.error(`Failed to cancel booking ${booking.id}:`, err);
+      }
+    }
+
+    console.log(`🕒 Processed ${expiredBookings.length} expired bookings.`);
+  }
+
+  async uploadAadhaarImages(
+    bookingId,
+    userId,
+    frontFile,
+    backFile,
+    isAdmin = false,
+  ) {
+    const booking = await this.bookingRepository.findById(bookingId);
+    if (!booking) {
+      throw new AppError("Booking not found", 404);
+    }
+
+    // Authorization: Ensure the user owns the booking (unless an admin/clerk is doing it)
+    if (!isAdmin && booking.userId !== userId) {
+      throw new AppError(
+        "You do not have permission to upload documents for this booking.",
+        403,
+      );
+    }
+
+    // Ensure booking is in a state that allows document uploads
+    const invalidStates = [
+      "CANCELLED",
+      "REJECTED",
+      "CHECKED_IN",
+      "CHECKED_OUT",
+    ];
+    if (invalidStates.includes(booking.status)) {
+      throw new AppError(
+        `Cannot upload documents. Booking is currently ${booking.status}.`,
+        400,
+      );
+    }
+
+    const bucketName = process.env.MINIO_BUCKET_NAME;
+
+    // Helper function to compress and upload a single file
+    const processAndUpload = async (file, side) => {
+      if (!file || !file.buffer) {
+        throw new AppError(
+          `Buffer for ${side} image is missing or invalid.`,
+          400,
+        );
+      }
+
+      try {
+        const compressedBuffer = await sharp(file.buffer)
+          .resize({ width: 1200, withoutEnlargement: true })
+          .jpeg({ quality: 80 })
+          .toBuffer();
+
+        const fileName = `aadhaar/${booking.id}-${side}-${Date.now()}.jpg`;
+
+        await minioClient.putObject(
+          bucketName,
+          fileName,
+          compressedBuffer,
+          compressedBuffer.length,
+          { "Content-Type": "image/jpeg" },
+        );
+
+        const minioEndpoint = process.env.MINIO_ENDPOINT;
+        return `${minioEndpoint}/${bucketName}/${fileName}`;
+      } catch (sharpError) {
+        console.error(`Sharp/Minio Error (${side}):`, sharpError);
+        throw new AppError(
+          `Failed to process ${side} image: ${sharpError.message}`,
+          500,
+        );
+      }
+    };
+
+    // Process both images concurrently for faster response times
+    const [frontUrl, backUrl] = await Promise.all([
+      processAndUpload(frontFile, "front"),
+      processAndUpload(backFile, "back"),
+    ]);
+
+    // Save the new URLs to the database model fields we added in Step 1
+    booking.aadharFrontImageUrl = frontUrl;
+    booking.aadharBackImageUrl = backUrl;
+    await booking.save();
+
+    return {
+      aadharFrontImageUrl: booking.aadharFrontImageUrl,
+      aadharBackImageUrl: booking.aadharBackImageUrl,
+    };
   }
 
   /**
@@ -462,7 +601,6 @@ export class BookingService {
     // Update the booking record
     booking.status = "CHECKED_IN";
     booking.actualCheckInTime = new Date();
-    booking.aadharImageUrl = aadharFileName;
 
     if (["CASH", "QR"].includes(paymentData.checkInPaymentMode)) {
       booking.checkInPaymentMode = paymentData.checkInPaymentMode;
@@ -631,16 +769,20 @@ export class BookingService {
 
     const advanceAmount = Number(booking.advanceAmountRequested || 0);
     let refundPercentage = 0;
+    let refundAmount = 0;
 
-    if (diffDays >= 30) {
-      refundPercentage = 50;
-    } else if (diffDays >= 15) {
-      refundPercentage = 25;
-    } else {
-      refundPercentage = 0;
+    if (booking.status === "CONFIRMED") {
+      if (diffDays >= 30) {
+        refundPercentage = 50;
+      } else if (diffDays >= 15) {
+        refundPercentage = 25;
+      } else {
+        refundPercentage = 0;
+      }
+      refundAmount = (advanceAmount * refundPercentage) / 100;
     }
 
-    const refundAmount = (advanceAmount * refundPercentage) / 100;
+    let statusMessage = "Booking cancelled successfully.";
 
     if (
       refundAmount > 0 &&
@@ -661,6 +803,8 @@ export class BookingService {
 
         // Update payment status to reflect the refund
         booking.paymentStatus = "REFUNDED";
+        statusMessage =
+          "Refund initiated successfully to your original online payment source.";
       } catch (error) {
         console.error("Razorpay Refund Error:", error);
         throw new AppError(
@@ -669,9 +813,14 @@ export class BookingService {
         );
       }
     } else if (refundAmount > 0) {
-      // If they paid by CASH or QR, they still get a refund, but it requires manual action
-      // We can leave paymentStatus as "PARTIAL" or add a new enum like "PENDING_MANUAL_REFUND" later if you wish
       booking.paymentStatus = "PARTIAL";
+      statusMessage = `Booking cancelled. A refund of ₹${refundAmount} is applicable. Please visit the clerk desk to collect your manual refund.`;
+    } else if (booking.status !== "CONFIRMED") {
+      statusMessage =
+        "Booking cancelled. Because no advance payment was made, no refund is required.";
+    } else {
+      statusMessage =
+        "Booking cancelled. As per policy, no refund is applicable for this cancellation window.";
     }
 
     booking.status = "CANCELLED";
@@ -687,10 +836,7 @@ export class BookingService {
       refundAmount,
       refundPercentage,
       cancelledAt: booking.cancelledAt,
-      message:
-        booking.advancePaymentMode === "ONLINE"
-          ? "Refund initiated successfully to the original payment source."
-          : "Booking cancelled. Please collect your cash refund from the clerk.",
+      message: statusMessage,
     };
   }
 

@@ -79,19 +79,6 @@ export class BillingService {
       0,
     );
 
-    // --- 4. Auto-Calculate Taxes ---
-    const taxableAmount = Math.max(
-      0,
-      baseAmount + totalAdditionalAmount - discountAmount,
-    );
-    const cgstAmount = isDonation
-      ? 0.0
-      : parseFloat((taxableAmount * 0.025).toFixed(2));
-    const sgstAmount = isDonation
-      ? 0.0
-      : parseFloat((taxableAmount * 0.025).toFixed(2));
-    const totalAmount = taxableAmount + cgstAmount + sgstAmount;
-    // --- 5. Post-Event Deduction Calculations ---
     const electricityCharges = (dto.electricityUnitsConsumed || 0) * 14;
     const cleaningCharges = parseFloat(dto.cleaningCharges || 0);
     const generatorCharges = parseFloat(dto.generatorCharges || 0);
@@ -107,8 +94,24 @@ export class BillingService {
     const totalDeductions =
       electricityCharges + cleaningCharges + generatorCharges + totalPenalties;
 
+    // --- 4. Auto-Calculate Taxes ---
+    const taxableAmount = Math.max(
+      0,
+      baseAmount + totalAdditionalAmount + totalDeductions - discountAmount,
+    );
+
+    const cgstAmount = isDonation
+      ? 0.0
+      : parseFloat((taxableAmount * 0.025).toFixed(2));
+    const sgstAmount = isDonation
+      ? 0.0
+      : parseFloat((taxableAmount * 0.025).toFixed(2));
+
+    const totalAmount = taxableAmount + cgstAmount + sgstAmount;
+    // --- 5. Post-Event Deduction Calculations ---
+
     // --- 6. Final Refund / Balance Math ---
-    const grandTotalEventCost = totalAmount + totalDeductions;
+    const grandTotalEventCost = totalAmount;
 
     // What the user has already paid:
     const totalPaidUpfront = baseAmount + securityDeposit;
