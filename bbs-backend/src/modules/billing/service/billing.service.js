@@ -5,6 +5,7 @@ import { AppError } from "../../../utils/AppError.js";
 import { PaymentService } from "../../payment/service/payment.service.js";
 import User from "../../user/model/user.model.js";
 import minioClient from "../../../config/minio.js";
+import SystemSetting from "../../admin/model/systemSetting.model.js";
 
 export class BillingService {
   constructor() {
@@ -100,12 +101,24 @@ export class BillingService {
       baseAmount + totalAdditionalAmount + totalDeductions - discountAmount,
     );
 
+    let taxSettings = await SystemSetting.findByPk(1);
+    if (!taxSettings) {
+      taxSettings = await SystemSetting.create({
+        cgstPercentage: 2.5,
+        sgstPercentage: 2.5,
+      });
+    }
+
+    const cgstRate = parseFloat(taxSettings.cgstPercentage) / 100;
+    const sgstRate = parseFloat(taxSettings.sgstPercentage) / 100;
+
     const cgstAmount = isDonation
       ? 0.0
-      : parseFloat((taxableAmount * 0.025).toFixed(2));
+      : parseFloat((taxableAmount * cgstRate).toFixed(2));
+
     const sgstAmount = isDonation
       ? 0.0
-      : parseFloat((taxableAmount * 0.025).toFixed(2));
+      : parseFloat((taxableAmount * sgstRate).toFixed(2));
 
     const totalAmount = taxableAmount + cgstAmount + sgstAmount;
     // --- 5. Post-Event Deduction Calculations ---

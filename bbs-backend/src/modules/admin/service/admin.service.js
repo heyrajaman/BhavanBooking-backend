@@ -5,6 +5,7 @@ import { AppError } from "../../../utils/AppError.js";
 import { NotificationService } from "../../notification/service/notification.service.js";
 import minioClient from "../../../config/minio.js";
 import User from "../../user/model/user.model.js";
+import SystemSetting from "../model/systemSetting.model.js";
 
 export class AdminService {
   constructor() {
@@ -13,9 +14,6 @@ export class AdminService {
     this.notificationService = new NotificationService();
   }
 
-  /**
-   * Admin explicitly approves a booking and requests an advance payment.
-   */
   async approveBooking(
     bookingId,
     adminUserId,
@@ -152,9 +150,6 @@ export class AdminService {
     return signatureUrl; // Return the new URL to the controller
   }
 
-  /**
-   * Fetches all bookings, with optional status filtering for the dashboards
-   */
   async getAllBookings(queryFilters) {
     const filters = {};
 
@@ -172,9 +167,6 @@ export class AdminService {
     return bookings;
   }
 
-  /**
-   * Clerk verifies a pending booking
-   */
   async verifyBookingByClerk(bookingId, clerkUserId) {
     // 1. Fetch the booking
     const booking = await this.bookingRepository.findById(bookingId);
@@ -202,10 +194,6 @@ export class AdminService {
     return booking;
   }
 
-  /**
-   * Fetches the complete, detailed view of a specific booking for the Admin Dashboard.
-   * Includes User and Facility data.
-   */
   async getBookingDetails(bookingId) {
     // 1. Fetch the data using our new repository method
     const booking = await this.bookingRepository.findByIdWithDetails(bookingId);
@@ -217,5 +205,34 @@ export class AdminService {
 
     // 3. Return the rich data object
     return booking;
+  }
+
+  async getTaxSettings() {
+    let settings = await SystemSetting.findByPk(1);
+
+    if (!settings) {
+      settings = await SystemSetting.create({
+        cgstPercentage: 2.5,
+        sgstPercentage: 2.5,
+      });
+    }
+    return settings;
+  }
+
+  async updateTaxSettings(cgstPercentage, sgstPercentage) {
+    let settings = await SystemSetting.findByPk(1);
+
+    if (!settings) {
+      settings = await SystemSetting.create({
+        cgstPercentage: 2.5,
+        sgstPercentage: 2.5,
+      });
+    }
+
+    if (cgstPercentage !== undefined) settings.cgstPercentage = cgstPercentage;
+    if (sgstPercentage !== undefined) settings.sgstPercentage = sgstPercentage;
+
+    await settings.save();
+    return settings;
   }
 }

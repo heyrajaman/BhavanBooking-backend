@@ -14,9 +14,14 @@ router.use(protect);
 router.use(restrictTo("ADMIN"));
 
 router.post("/", catchAsync(facilityController.createFacility));
+
 router.patch(
   "/:facilityId/pricing",
   catchAsync(facilityController.updatePricing),
 );
+
+router.patch("/:facilityId", catchAsync(facilityController.updateFacility));
+
+router.delete("/:facilityId", catchAsync(facilityController.deleteFacility));
 
 export default router;

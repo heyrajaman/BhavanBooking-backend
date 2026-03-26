@@ -10,8 +10,6 @@ export class AdminController {
     this.adminService = new AdminService();
   }
 
-  // Add this method inside your AdminController class
-
   uploadSignature = async (req, res, next) => {
     // 1. Check if Multer caught the file
     if (!req.file) {
@@ -36,9 +34,6 @@ export class AdminController {
     });
   };
 
-  /**
-   * Handles the request for an Admin to approve a booking and set the advance amount
-   */
   approveBooking = async (req, res, next) => {
     try {
       const { bookingId } = req.params;
@@ -75,10 +70,6 @@ export class AdminController {
     }
   };
 
-  /**
-   * Fetch all bookings for the Clerk/Admin dashboard
-   * Supports filtering via query parameters (e.g., ?status=PENDING)
-   */
   getAllBookings = async (req, res, next) => {
     try {
       // Extract any filters from the URL query string
@@ -103,9 +94,6 @@ export class AdminController {
     }
   };
 
-  /**
-   * Handles the request for a Clerk to verify a PENDING booking
-   */
   verifyByClerk = async (req, res, next) => {
     try {
       const { bookingId } = req.params;
@@ -139,6 +127,37 @@ export class AdminController {
         success: true,
         message: "Booking details fetched successfully",
         data: responseData,
+      });
+    } catch (error) {
+      next(error);
+    }
+  };
+
+  getTaxSettings = async (req, res, next) => {
+    try {
+      const settings = await this.adminService.getTaxSettings();
+      return res.status(200).json({
+        success: true,
+        data: settings,
+      });
+    } catch (error) {
+      next(error);
+    }
+  };
+
+  updateTaxSettings = async (req, res, next) => {
+    try {
+      const { cgstPercentage, sgstPercentage } = req.body;
+
+      const updatedSettings = await this.adminService.updateTaxSettings(
+        cgstPercentage,
+        sgstPercentage,
+      );
+
+      return res.status(200).json({
+        success: true,
+        message: "Tax settings updated successfully.",
+        data: updatedSettings,
       });
     } catch (error) {
       next(error);
