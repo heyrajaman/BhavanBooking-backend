@@ -21,12 +21,12 @@ export const validateDto = (schema, source = "body") => {
       return next(new AppError(errorMessage, 400));
     }
 
-Object.defineProperty(req, source, {
-  value: value,
-  writable: true,
-  enumerable: true,
-  configurable: true
-});
+    Object.defineProperty(req, source, {
+      value: value,
+      writable: true,
+      enumerable: true,
+      configurable: true,
+    });
 
     next();
   };

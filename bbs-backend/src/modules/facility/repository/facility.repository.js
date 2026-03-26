@@ -41,4 +41,11 @@ export class FacilityRepository {
     if (!facility) return null;
     return await facility.update(updateData);
   }
+
+  async delete(id) {
+    const facility = await Facility.findByPk(id);
+    if (!facility) return null;
+
+    return await facility.update({ isActive: false });
+  }
 }

@@ -12,6 +12,7 @@ import facilityRoutes from "./modules/facility/routes/facility.routes.js";
 import billingRoutes from "./modules/billing/routes/billing.routes.js";
 import adminAuthRoutes from "./modules/admin/routes/admin.auth.routes.js";
 import paymentRoutes from "./modules/payment/routes/payment.routes.js";
+import settingRoutes from "./modules/admin/routes/setting.routes.js";
 
 // Import the error handler and custom error class
 import { globalErrorHandler } from "./middlewares/error.middleware.js";
@@ -28,6 +29,7 @@ app.use(morgan("dev")); // Logs API requests to the terminal
 // 2. Mount your Routes
 app.use("/api/v1/auth", authRoutes);
 app.use("/api/v1/auth/admin", adminAuthRoutes);
+app.use("/api/v1/settings", settingRoutes);
 app.use("/api/v1/facilities", facilityRoutes);
 app.use("/api/v1/bookings", bookingRoutes);
 app.use("/api/v1/billing", billingRoutes);
