@@ -198,7 +198,8 @@ const facilityData = [
     pricingType: "SLOT",
     baseRate: 35000.0,
     pricingDetails: {
-      duration_hours: 6,
+      slotType: "FLEXIBLE",
+      durationHours: 6,
       included_facilities: ["Big Hall", "Stage", "Standard Room"],
     },
     securityDeposit: 25000.0,
@@ -212,16 +213,38 @@ const facilityData = [
   },
   {
     name: "Dining Hall + Kitchen + Parking (for 75 persons)",
-    description: `Half Day (8:00 AM – 4:00 PM OR 4:00 PM – 11:00 PM) or Full Day.
+    description: `Half Day (8:00 AM – 3:00 PM OR 4:00 PM – 11:00 PM) or Full Day.
       Half day = ₹25000 
       Full day = ₹40000`,
     facilityType: "PACKAGE",
     pricingType: "SLOT",
     baseRate: 25000.0,
     pricingDetails: {
-      half_day: 25000,
-      full_day: 40000,
+      slotType: "FIXED", // Tells the frontend/backend how to behave
       included_facilities: ["Dining Hall", "Kitchen", "Parking"],
+      slots: [
+        {
+          id: "morning",
+          label: "Morning (8 AM - 3 PM)",
+          startTime: "08:00",
+          endTime: "15:00",
+          price: 25000,
+        },
+        {
+          id: "evening",
+          label: "Evening (4 PM - 11 PM)",
+          startTime: "16:00",
+          endTime: "23:00",
+          price: 25000,
+        },
+        {
+          id: "full_day",
+          label: "Full Day (8 AM - 11 PM)",
+          startTime: "08:00",
+          endTime: "23:00",
+          price: 40000,
+        },
+      ],
     },
     securityDeposit: 25000.0,
     imageFiles: ["dining_hall_1.jpeg"],

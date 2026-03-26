@@ -1,7 +1,8 @@
 // src/modules/facility/service/facility.service.js
 import { FacilityRepository } from "../repository/facility.repository.js";
-
 import { BookingRepository } from "../../booking/repository/booking.repository.js";
+import sharp from "sharp";
+import minioClient from "../../../config/minio.js";
 export class FacilityService {
   constructor() {
     this.facilityRepository = new FacilityRepository();
@@ -98,11 +99,44 @@ export class FacilityService {
     return facilities;
   }
 
-  async updateFacility(facilityId, updateData) {
+  async updateFacility(facilityId, updateData, newImageFiles = []) {
     const facility = await this.facilityRepository.findById(facilityId);
 
     if (!facility) {
       throw new Error("Facility not found.");
+    }
+
+    if (newImageFiles && newImageFiles.length > 0) {
+      const bucketName = process.env.MINIO_BUCKET_NAME;
+      const minioEndpoint = process.env.MINIO_ENDPOINT;
+
+      const minioPort = process.env.MINIO_PORT || 9000;
+      const protocol = process.env.MINIO_USE_SSL === "true" ? "https" : "http";
+
+      const uploadedUrls = [];
+
+      for (const file of newImageFiles) {
+        const compressedBuffer = await sharp(file.buffer)
+          .resize({ width: 1200, withoutEnlargement: true })
+          .jpeg({ quality: 80 })
+          .toBuffer();
+
+        const fileName = `seed-images/${facilityId}-${Date.now()}-${Math.round(Math.random() * 1000)}.jpg`;
+
+        await minioClient.putObject(
+          bucketName,
+          fileName,
+          compressedBuffer,
+          compressedBuffer.length,
+          { "Content-Type": "image/jpeg" },
+        );
+
+        uploadedUrls.push(
+          `${protocol}://${minioEndpoint}:${minioPort}/${bucketName}/${fileName}`,
+        );
+      }
+
+      updateData.images = [...(updateData.images || []), ...uploadedUrls];
     }
 
     return await this.facilityRepository.update(facilityId, updateData);

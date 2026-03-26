@@ -36,6 +36,29 @@ export const CreateFacilityDto = Joi.object({
   // Pricing Details for packages
   pricingDetails: Joi.object({
     included_facilities: Joi.array().items(Joi.string()).optional(),
+
+    // For Slot Types
+    slotType: Joi.string().valid("FIXED", "FLEXIBLE").optional(),
+
+    // For FLEXIBLE slots
+    durationHours: Joi.number().min(1).optional(),
+
+    // For FIXED slots
+    slots: Joi.array()
+      .items(
+        Joi.object({
+          id: Joi.string().required(),
+          label: Joi.string().required(),
+          startTime: Joi.string()
+            .pattern(/^(\d|2[0-3]):?([0-5]\d)$/)
+            .required(), // Matches "HH:mm"
+          endTime: Joi.string()
+            .pattern(/^(\d|2[0-3]):?([0-5]\d)$/)
+            .required(),
+          price: Joi.number().min(0).required(),
+        }),
+      )
+      .optional(),
   }).optional(),
 
   amenities: Joi.array().items(Joi.string()).optional().default([]),

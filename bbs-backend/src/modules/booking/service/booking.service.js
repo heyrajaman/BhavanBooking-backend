@@ -11,6 +11,7 @@ import { razorpayInstance } from "../../../config/razorpay.js";
 import Invoice from "../../billing/model/invoice.model.js";
 import sharp from "sharp";
 import minioClient from "../../../config/minio.js";
+import { validateFacilitySlots } from "../../../utils/timeValidator.js";
 
 export class BookingService {
   constructor() {
@@ -454,6 +455,8 @@ export class BookingService {
         if (!fac)
           throw new AppError(`Facility ID ${item.facilityId} not found.`, 404);
 
+        validateFacilitySlots(fac, bookingData.startTime, bookingData.endTime);
+
         // Conflict check for custom item
         if (
           unavailableFacilities.has(fac.name) &&
@@ -499,6 +502,12 @@ export class BookingService {
         bookingData.facilityId,
       );
       if (!facility) throw new AppError("Facility not found.", 404);
+
+      validateFacilitySlots(
+        facility,
+        bookingData.startTime,
+        bookingData.endTime,
+      );
 
       // Check if the package itself is blocked
       if (unavailableFacilities.has(facility.name)) {
@@ -931,15 +940,35 @@ export class BookingService {
         }
         break;
       case "SLOT":
-        if (details && details.half_day && details.full_day) {
-          // If it's more than 24 hours, treat it as multiple full days
-          if (durationDays > 1) {
-            total = durationDays * details.full_day;
+        if (details && details.slotType === "FIXED" && details.slots) {
+          // Extract requested times to match the slot
+          const reqStartStr = new Date(startTime).toLocaleTimeString("en-GB", {
+            hour: "2-digit",
+            minute: "2-digit",
+          });
+          const reqEndStr = new Date(endTime).toLocaleTimeString("en-GB", {
+            hour: "2-digit",
+            minute: "2-digit",
+          });
+
+          // Find the exact slot the user picked to get its specific price
+          const matchedSlot = details.slots.find(
+            (s) => s.startTime === reqStartStr && s.endTime === reqEndStr,
+          );
+
+          if (matchedSlot) {
+            total = matchedSlot.price;
           } else {
-            total = durationHours <= 8 ? details.half_day : details.full_day;
+            // Fallback if somehow it bypassed validation
+            total = baseRate;
           }
-        } else if (details && details.duration_hours) {
-          total = Math.ceil(durationHours / details.duration_hours) * baseRate;
+        } else if (
+          details &&
+          details.slotType === "FLEXIBLE" &&
+          details.durationHours
+        ) {
+          // For flexible 6-hour packages, it's usually just a flat rate per X hours
+          total = Math.ceil(durationHours / details.durationHours) * baseRate;
         }
         break;
       case "FIXED":

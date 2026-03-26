@@ -3,6 +3,7 @@ import { Router } from "express";
 import { FacilityController } from "../controller/facility.controller.js";
 import { catchAsync } from "../../../utils/catchAsync.js";
 import { protect, restrictTo } from "../../../middlewares/auth.middleware.js";
+import { uploadImage } from "../../../middlewares/upload.middleware.js";
 
 const router = Router();
 const facilityController = new FacilityController();
@@ -20,7 +21,11 @@ router.patch(
   catchAsync(facilityController.updatePricing),
 );
 
-router.patch("/:facilityId", catchAsync(facilityController.updateFacility));
+router.patch(
+  "/:facilityId",
+  uploadImage.array("newImages", 5),
+  catchAsync(facilityController.updateFacility),
+);
 
 router.delete("/:facilityId", catchAsync(facilityController.deleteFacility));
 

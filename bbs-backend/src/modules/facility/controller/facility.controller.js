@@ -70,16 +70,48 @@ export class FacilityController {
   updateFacility = async (req, res, next) => {
     try {
       const { facilityId } = req.params;
-      const updateData = req.body;
+      const updateData = { ...req.body };
+
+      const newImageFiles = req.files || [];
+
+      if (
+        updateData.pricingDetails &&
+        typeof updateData.pricingDetails === "string"
+      ) {
+        updateData.pricingDetails = JSON.parse(updateData.pricingDetails);
+      }
+
+      if (updateData.existingImages) {
+        try {
+          updateData.images = JSON.parse(updateData.existingImages);
+        } catch (e) {
+          updateData.images =
+            typeof updateData.existingImages === "string"
+              ? [updateData.existingImages]
+              : updateData.existingImages;
+        }
+        delete updateData.existingImages;
+      } else {
+        updateData.images = [];
+      }
+
+      if (updateData.amenities && typeof updateData.amenities === "string") {
+        try {
+          updateData.amenities = JSON.parse(updateData.amenities);
+        } catch (e) {
+          updateData.amenities = updateData.amenities.split(",");
+        }
+      }
 
       const updatedFacility = await this.facilityService.updateFacility(
         facilityId,
         updateData,
+        newImageFiles,
       );
 
       return res.status(200).json({
         success: true,
-        message: "Facility details updated successfully.",
+        message: "Facility details and images updated successfully.",
         data: updatedFacility,
       });
     } catch (error) {
