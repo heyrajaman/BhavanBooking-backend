@@ -20,9 +20,9 @@ router.post(
 router.post(
   "/offline-remaining",
   protect,
-  restrictTo("STAFF", "ADMIN"),
+  restrictTo("CLERK", "ADMIN"),
   validateDto(OfflineRemainingDto),
-  paymentController.verifyOfflineRemaining,
+  catchAsync(paymentController.verifyOfflineRemaining),
 );
 
 // All payment routes require the user to be logged in and have the "USER" role

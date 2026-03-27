@@ -27,20 +27,20 @@ export class FacilityController {
    * Create a new facility or package (Admin Only)
    */
   createFacility = async (req, res, next) => {
-    try {
-      const facilityData = req.body;
+    const facilityData = req.body;
 
-      const newFacility =
-        await this.facilityService.createFacility(facilityData);
+    const files = req.files;
 
-      return res.status(201).json({
-        success: true,
-        message: "Facility created successfully.",
-        data: newFacility,
-      });
-    } catch (error) {
-      next(error);
-    }
+    const newFacility = await this.facilityService.createFacility(
+      facilityData,
+      files,
+    );
+
+    return res.status(201).json({
+      success: true,
+      message: "Facility created successfully.",
+      data: newFacility,
+    });
   };
 
   /**

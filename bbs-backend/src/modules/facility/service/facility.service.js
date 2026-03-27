@@ -3,6 +3,7 @@ import { FacilityRepository } from "../repository/facility.repository.js";
 import { BookingRepository } from "../../booking/repository/booking.repository.js";
 import sharp from "sharp";
 import minioClient from "../../../config/minio.js";
+import { AppError } from "../../../utils/AppError.js";
 export class FacilityService {
   constructor() {
     this.facilityRepository = new FacilityRepository();
@@ -12,11 +13,58 @@ export class FacilityService {
   /**
    * Create a new facility (Package or Custom)
    */
-  async createFacility(facilityData) {
-    // You can add extra validation here if needed, but the DB model will catch most issues
-    return await this.facilityRepository.create(facilityData);
-  }
+  async createFacility(facilityData, files) {
+    const imageUrls = [];
 
+    // 1. Process and upload images if the user provided any
+    if (files && files.length > 0) {
+      const bucketName = process.env.MINIO_BUCKET_NAME;
+      const minioEndpoint = process.env.MINIO_ENDPOINT;
+
+      for (const file of files) {
+        if (!file.buffer) continue;
+
+        try {
+          // Compress the image using Sharp
+          const compressedBuffer = await sharp(file.buffer)
+            .resize({ width: 1200, withoutEnlargement: true })
+            .jpeg({ quality: 80 })
+            .toBuffer();
+
+          // Generate a unique filename
+          const fileName = `facilities/fac-${Date.now()}-${Math.round(Math.random() * 1000)}.jpg`;
+
+          // Upload to Minio
+          await minioClient.putObject(
+            bucketName,
+            fileName,
+            compressedBuffer,
+            compressedBuffer.length,
+            { "Content-Type": "image/jpeg" },
+          );
+
+          // Construct the public URL and push to our array
+          const fileUrl = `${minioEndpoint}/${bucketName}/${fileName}`;
+          imageUrls.push(fileUrl);
+        } catch (error) {
+          console.error("Facility Image Upload Error:", error);
+          throw new AppError(
+            "Failed to process and upload facility images.",
+            500,
+          );
+        }
+      }
+    }
+
+    // 2. Attach the generated URLs to the facility data payload
+    // Your facility model expects 'images' to be a JSON array of strings
+    facilityData.images = imageUrls;
+
+    // 3. Save everything to the database using your repository
+    const newFacility = await this.facilityRepository.create(facilityData);
+
+    return newFacility;
+  }
   /**
    * Update an existing facility's pricing
    */
