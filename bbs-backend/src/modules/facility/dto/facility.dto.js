@@ -16,7 +16,9 @@ export const CreateFacilityDto = Joi.object({
   capacity: Joi.number().integer().min(1).required().messages({
     "number.min": "Capacity must be at least 1.",
   }),
-  pricingType: Joi.string().valid("FIXED", "PER_PERSON", "MIXED").required(),
+  pricingType: Joi.string()
+    .valid("TIERED", "SLOT", "HOURLY", "FIXED", "PER_ITEM")
+    .required(),
 
   // Pricing - Renamed to baseRate to match the controller/service
   baseRate: Joi.number().min(0).required().messages({
