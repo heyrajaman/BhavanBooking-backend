@@ -318,6 +318,50 @@ export class PaymentService {
     return booking;
   }
 
+  async verifyOfflineRemainingPayment(clerkId, paymentData) {
+    const { bookingId, paymentMode, amountCollected } = paymentData;
+
+    const booking = await this.bookingRepository.findById(bookingId);
+    if (!booking) throw new AppError("Booking not found", 404);
+
+    // State Machine Check: Must be CONFIRMED and PARTIAL
+    if (booking.status !== "CONFIRMED" || booking.paymentStatus !== "PARTIAL") {
+      throw new AppError(
+        `Cannot record remaining payment. Booking status is ${booking.status} and payment status is ${booking.paymentStatus}.`,
+        400,
+      );
+    }
+
+    // Calculate the Remaining Amount
+    const totalCost =
+      Number(booking.calculatedAmount) + Number(booking.securityDeposit);
+    const advancePaid = Number(booking.advanceAmountRequested);
+    const remainingAmount = totalCost - advancePaid;
+
+    if (remainingAmount <= 0) {
+      throw new AppError("There is no remaining balance left to pay.", 400);
+    }
+
+    // Ensure the clerk collected the correct amount
+    if (Number(amountCollected) < remainingAmount) {
+      throw new AppError(
+        `Collected amount (₹${amountCollected}) is less than the required remaining balance (₹${remainingAmount}).`,
+        400,
+      );
+    }
+
+    // Update the Payment Status to COMPLETED
+    booking.paymentStatus = "COMPLETED";
+
+    // You may want to add these fields to your Booking model if they don't exist yet
+    booking.remainingPaymentMode = paymentMode; // e.g., "CASH" or "QR"
+    booking.remainingCollectedBy = clerkId;
+
+    await booking.save();
+
+    return booking;
+  }
+
   /**
    * 5. Processes a refund for a specific payment ID
    */

@@ -3,7 +3,7 @@ import { Router } from "express";
 import { PaymentController } from "../controller/payment.controller.js";
 import { catchAsync } from "../../../utils/catchAsync.js";
 import { protect, restrictTo } from "../../../middlewares/auth.middleware.js";
-import { OfflineAdvanceDto } from "../dto/payment.dto.js";
+import { OfflineAdvanceDto, OfflineRemainingDto } from "../dto/payment.dto.js";
 import { validateDto } from "../../../middlewares/validate.js";
 
 const router = Router();
@@ -15,6 +15,14 @@ router.post(
   restrictTo("CLERK", "ADMIN"), // Staff only
   validateDto(OfflineAdvanceDto),
   catchAsync(paymentController.verifyOfflineAdvance),
+);
+
+router.post(
+  "/offline-remaining",
+  protect,
+  restrictTo("STAFF", "ADMIN"),
+  validateDto(OfflineRemainingDto),
+  paymentController.verifyOfflineRemaining,
 );
 
 // All payment routes require the user to be logged in and have the "USER" role

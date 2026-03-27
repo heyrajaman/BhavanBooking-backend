@@ -593,7 +593,7 @@ export class BookingService {
   }
 
   // Update the method signature
-  async checkInBooking(bookingId, aadharFileName, paymentData = {}) {
+  async checkInBooking(bookingId) {
     const booking = await this.bookingRepository.findById(bookingId);
 
     if (!booking) {
@@ -607,16 +607,19 @@ export class BookingService {
       );
     }
 
+    // STRICT CHECK: Ensure the payment was completed via Razorpay or the new offline-remaining route
+    if (booking.paymentStatus !== "COMPLETED") {
+      throw new AppError(
+        `Full payment is required before check-in. Current payment status is ${booking.paymentStatus}. Please settle the remaining balance first.`,
+        400,
+      );
+    }
+
     // Update the booking record
     booking.status = "CHECKED_IN";
     booking.actualCheckInTime = new Date();
 
-    if (["CASH", "QR"].includes(paymentData.checkInPaymentMode)) {
-      booking.checkInPaymentMode = paymentData.checkInPaymentMode;
-      booking.remainingAmountPaid = paymentData.remainingAmountPaid;
-      booking.cashCollectedBy = paymentData.clerkId;
-      booking.paymentStatus = "COMPLETED";
-    }
+    // The payment updates (CASH/QR) are completely removed from here
 
     await booking.save();
 

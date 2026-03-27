@@ -108,4 +108,23 @@ export class PaymentController {
       data: completedBooking,
     });
   };
+
+  verifyOfflineRemaining = async (req, res, next) => {
+    // req.user is extracted from your protect/auth middleware
+    const clerkId = req.user.id;
+    const paymentData = req.body;
+
+    const completedBooking =
+      await this.paymentService.verifyOfflineRemainingPayment(
+        clerkId,
+        paymentData,
+      );
+
+    return res.status(200).json({
+      success: true,
+      message:
+        "Offline remaining payment recorded successfully. Payment is now COMPLETED!",
+      data: completedBooking,
+    });
+  };
 }

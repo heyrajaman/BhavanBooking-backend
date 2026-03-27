@@ -221,61 +221,15 @@ export class BookingController {
    */
   checkInBooking = async (req, res, next) => {
     const { bookingId } = req.params;
-    const clerkId = req.user.id;
-    const { remainingAmountPaid, checkInPaymentMode } = req.body;
 
-    const booking = await Booking.findByPk(bookingId);
+    const checkedInBooking =
+      await this.bookingService.checkInBooking(bookingId);
 
-    if (!booking) {
-      return res
-        .status(404)
-        .json({ success: false, message: "Booking not found." });
-    }
-
-    if (booking.status !== "CONFIRMED") {
-      return res.status(400).json({
-        success: false,
-        message: "Only confirmed bookings can be checked in.",
-      });
-    }
-
-    if (booking.paymentStatus !== "COMPLETED") {
-      if (
-        booking.paymentStatus === "PARTIAL" &&
-        ["CASH", "QR"].includes(checkInPaymentMode)
-      ) {
-        if (!remainingAmountPaid || Number(remainingAmountPaid) <= 0) {
-          return res.status(400).json({
-            success: false,
-            message:
-              "You must enter the remaining amount collected to proceed.",
-          });
-        }
-      } else {
-        return res.status(400).json({
-          success: false,
-          message:
-            "Guest cannot be checked in! They must pay online, or you must record a CASH/QR payment.",
-        });
-      }
-    }
-
-    // 3. Pass the generated filename to the service
-    const checkedInBooking = await this.bookingService.checkInBooking(
-      bookingId,
-      {
-        checkInPaymentMode,
-        remainingAmountPaid,
-        clerkId,
-      },
-    );
-
-    // Format response (Assuming BookingResponseDto handles the new fields)
     const formattedBooking = new BookingResponseDto(checkedInBooking);
 
     return res.status(200).json({
       success: true,
-      message: "Guest successfully checked in. ID securely stored.",
+      message: "Guest successfully checked in.",
       data: formattedBooking,
     });
   };

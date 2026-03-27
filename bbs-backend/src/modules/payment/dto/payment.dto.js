@@ -24,3 +24,18 @@ export const OfflineAdvanceDto = Joi.object({
     "number.min": "Amount collected must be greater than 0.",
   }),
 });
+
+export const OfflineRemainingDto = Joi.object({
+  bookingId: Joi.string().uuid().required().messages({
+    "string.guid": "Booking ID must be a valid UUID.",
+    "any.required": "Booking ID is required.",
+  }),
+  paymentMode: Joi.string().valid("CASH", "QR").required().messages({
+    "any.only": "Payment mode must be either CASH or QR.",
+    "any.required": "Payment mode is required.",
+  }),
+  amountCollected: Joi.number().min(1).required().messages({
+    "number.min": "Amount collected must be greater than 0.",
+    "any.required": "Amount collected is required.",
+  }),
+});
