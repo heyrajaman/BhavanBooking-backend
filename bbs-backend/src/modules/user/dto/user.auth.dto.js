@@ -9,21 +9,24 @@ const passwordRegex =
 
 export const UserRegisterDto = Joi.object({
   fullName: Joi.string().trim().min(3).required().messages({
+    "string.empty": "Full name cannot be empty.",
     "string.min": "Full name must be at least 3 characters long.",
     "any.required": "Full name is required.",
   }),
   mobile: Joi.string().pattern(mobileRegex).required().messages({
+    "string.empty": "Mobile number cannot be empty.",
     "string.pattern.base": "Mobile number must be exactly 10 digits.",
     "any.required": "Mobile number is required.",
   }),
   password: Joi.string().pattern(passwordRegex).required().messages({
+    "string.empty": "Password cannot be empty.",
     "string.pattern.base":
-      "Password must be 8-16 characters long and include at least one uppercase letter, one lowercase letter, one number, and one special character.",
+      "Password must be 8-16 characters and include an uppercase, lowercase, number, and special character.",
     "any.required": "Password is required.",
   }),
-  email: Joi.string().email().allow(null, "").optional().messages({
-    "string.email":
-      "Please provide a valid email address format (e.g., example@domain.com).",
+  // This is the fix for the optional email issue!
+  email: Joi.string().email().empty("").allow(null).optional().messages({
+    "string.email": "Please provide a valid email address format.",
   }),
 }).options({ stripUnknown: true });
 
