@@ -23,12 +23,31 @@ export class AuthController {
     const { mobile, password } = req.body;
 
     const result = await this.authService.loginUser(mobile, password);
+    const { userAccessToken, user } = result;
+
+    res.cookie("jwt", userAccessToken, {
+      httpOnly: true,
+      secure: process.env.NODE_ENV === "production",
+      sameSite: "lax",
+      maxAge: 24 * 60 * 60 * 1000,
+    });
 
     return res.status(200).json({
       success: true,
       message: "User login successful",
-      data: result, // This object now contains the specific userAccessToken
+      data: { user },
     });
+  };
+
+  logoutUser = async (req, res, next) => {
+    res.clearCookie("jwt", {
+      httpOnly: true,
+      secure: process.env.NODE_ENV === "production",
+      sameSite: "lax",
+    });
+    return res
+      .status(200)
+      .json({ success: true, message: "Logged out successfully" });
   };
 
   getMyProfile = async (req, res, next) => {

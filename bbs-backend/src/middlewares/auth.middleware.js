@@ -9,7 +9,10 @@ const userRepository = new UserRepository();
 export const protect = catchAsync(async (req, res, next) => {
   // 1. Get the token from the Authorization header
   let token;
-  if (
+
+  if (req.cookies && req.cookies.jwt && req.cookies.jwt !== "loggedout") {
+    token = req.cookies.jwt;
+  } else if (
     req.headers.authorization &&
     req.headers.authorization.startsWith("Bearer")
   ) {

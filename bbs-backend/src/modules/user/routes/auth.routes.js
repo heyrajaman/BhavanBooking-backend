@@ -30,6 +30,9 @@ router.post(
   catchAsync(authController.loginUser),
 );
 
+// POST /api/v1/auth/user/logout
+router.post("/user/logout", catchAsync(authController.logoutUser));
+
 // GET /api/v1/auth/me
 router.get("/me", protect, catchAsync(authController.getMyProfile));
 

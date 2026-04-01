@@ -10,10 +10,19 @@ export class AdminAuthController {
     const { mobile, password } = req.body;
     const result = await this.adminAuthService.loginAdmin(mobile, password);
 
+    const { adminAccessToken, user } = result;
+
+    res.cookie("jwt", adminAccessToken, {
+      httpOnly: true,
+      secure: process.env.NODE_ENV === "production",
+      sameSite: "lax",
+      maxAge: 24 * 60 * 60 * 1000,
+    });
+
     return res.status(200).json({
       success: true,
       message: "Admin login successful",
-      data: result, // Returns adminAccessToken
+      data: { user },
     });
   };
 
@@ -21,11 +30,31 @@ export class AdminAuthController {
     const { mobile, password } = req.body;
     const result = await this.adminAuthService.loginClerk(mobile, password);
 
+    const { clerkAccessToken, user } = result;
+
+    res.cookie("jwt", clerkAccessToken, {
+      httpOnly: true,
+      secure: process.env.NODE_ENV === "production",
+      sameSite: "lax",
+      maxAge: 24 * 60 * 60 * 1000,
+    });
+
     return res.status(200).json({
       success: true,
       message: "Clerk login successful",
-      data: result, // Returns clerkAccessToken
+      data: { user },
     });
+  };
+
+  logoutAdmin = async (req, res, next) => {
+    res.clearCookie("jwt", {
+      httpOnly: true,
+      secure: process.env.NODE_ENV === "production",
+      sameSite: "lax",
+    });
+    return res
+      .status(200)
+      .json({ success: true, message: "Logged out successfully" });
   };
 
   createClerk = async (req, res, next) => {

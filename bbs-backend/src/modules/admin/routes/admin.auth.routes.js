@@ -26,6 +26,9 @@ router.post(
   catchAsync(adminAuthController.clerkLogin),
 );
 
+// POST /api/v1/auth/admin/logout
+router.post("/logout", catchAsync(adminAuthController.logoutAdmin));
+
 router.patch(
   "/upload-signature",
   protect,

@@ -4,6 +4,7 @@ import express from "express";
 import cors from "cors";
 import helmet from "helmet";
 import morgan from "morgan";
+import cookieParser from "cookie-parser";
 
 // Import your domain routes
 import bookingRoutes from "./modules/booking/routes/booking.routes.js";
@@ -22,8 +23,14 @@ const app = express();
 
 // 1. Global Middlewares
 app.use(helmet());
-app.use(cors());
+app.use(
+  cors({
+    origin: process.env.FRONTEND_URL,
+    credentials: true,
+  }),
+);
 app.use(express.json()); // Parses incoming JSON payloads
+app.use(cookieParser());
 app.use(morgan("dev")); // Logs API requests to the terminal
 
 // 2. Mount your Routes
