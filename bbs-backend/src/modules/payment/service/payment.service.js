@@ -1,13 +1,13 @@
 // src/modules/payment/service/payment.service.js
 import crypto from "crypto";
 import { razorpayInstance } from "../../../config/razorpay.js";
-import { BookingRepository } from "../../booking/repository/booking.repository.js";
+import { BookingAccessService } from "../../booking/service/booking.access.service.js";
 import { AppError } from "../../../utils/AppError.js";
 import { NotificationService } from "../../notification/service/notification.service.js";
 
 export class PaymentService {
   constructor() {
-    this.bookingRepository = new BookingRepository();
+    this.bookingService = new BookingAccessService();
     this.notificationService = new NotificationService();
   }
 
@@ -17,7 +17,7 @@ export class PaymentService {
   async verifyOfflineAdvancePayment(clerkId, paymentData) {
     const { bookingId, paymentMode, amountCollected } = paymentData;
 
-    const booking = await this.bookingRepository.findById(bookingId);
+    const booking = await this.bookingService.findById(bookingId);
     if (!booking) throw new AppError("Booking not found", 404);
 
     const validStatuses = ["PENDING_ADVANCE_PAYMENT", "AWAITING_CASH_PAYMENT"];
@@ -78,7 +78,7 @@ export class PaymentService {
    * 1. Creates a Razorpay order for the initial Advance Payment
    */
   async createAdvancePaymentOrder(userId, bookingId, paymentMode = "ONLINE") {
-    const booking = await this.bookingRepository.findById(bookingId);
+    const booking = await this.bookingService.findById(bookingId);
     if (!booking) throw new AppError("Booking not found", 404);
 
     if (booking.userId !== userId) {
@@ -180,7 +180,7 @@ export class PaymentService {
       );
     }
 
-    const booking = await this.bookingRepository.findById(bookingId);
+    const booking = await this.bookingService.findById(bookingId);
     if (!booking || booking.userId !== userId) {
       throw new AppError("Booking not found or unauthorized.", 404);
     }
@@ -215,7 +215,7 @@ export class PaymentService {
    * 3. Creates a Razorpay order for the Remaining Balance
    */
   async createRemainingPaymentOrder(userId, bookingId) {
-    const booking = await this.bookingRepository.findById(bookingId);
+    const booking = await this.bookingService.findById(bookingId);
     if (!booking) throw new AppError("Booking not found", 404);
 
     if (booking.userId !== userId) {
@@ -305,7 +305,7 @@ export class PaymentService {
       );
     }
 
-    const booking = await this.bookingRepository.findById(bookingId);
+    const booking = await this.bookingService.findById(bookingId);
     if (!booking || booking.userId !== userId) {
       throw new AppError("Booking not found or unauthorized.", 404);
     }

@@ -1,14 +1,13 @@
 // src/modules/booking/service/booking.service.js
 import { BookingRepository } from "../repository/booking.repository.js";
-import { FacilityRepository } from "../../facility/repository/facility.repository.js";
+import { FacilityService } from "../../facility/service/facility.service.js";
 import { AppError } from "../../../utils/AppError.js";
 import { NotificationService } from "../../notification/service/notification.service.js";
 import { Op } from "sequelize";
 import Booking from "../model/booking.model.js";
-import User from "../../user/model/user.model.js";
+import { UserService } from "../../user/service/user.service.js";
 import bcrypt from "bcrypt";
 import { razorpayInstance } from "../../../config/razorpay.js";
-import Invoice from "../../billing/model/invoice.model.js";
 import sharp from "sharp";
 import minioClient from "../../../config/minio.js";
 import { validateFacilitySlots } from "../../../utils/timeValidator.js";
@@ -16,7 +15,8 @@ import { validateFacilitySlots } from "../../../utils/timeValidator.js";
 export class BookingService {
   constructor() {
     this.bookingRepository = new BookingRepository();
-    this.facilityRepository = new FacilityRepository();
+    this.facilityService = new FacilityService();
+    this.userService = new UserService();
     this.notificationService = new NotificationService();
   }
 
@@ -184,7 +184,7 @@ export class BookingService {
   async createBookingOnBehalf(bookingData, clerkId) {
     // 1. Find or Create the User based on mobile number
     let isNewUser = false;
-    let user = await User.findOne({ where: { mobile: bookingData.mobile } });
+    let user = await this.userService.findByMobile(bookingData.mobile);
 
     const plainTextPassword =
       "WalkInUser@" + Math.floor(1000 + Math.random() * 9000);
@@ -192,7 +192,7 @@ export class BookingService {
 
     if (!user) {
       // Create a new user if they don't exist in the system
-      user = await User.create({
+      user = await this.userService.createUser({
         fullName: bookingData.fullName,
         mobile: bookingData.mobile,
         email: bookingData.email || null,
@@ -227,7 +227,7 @@ export class BookingService {
   // Replace your existing getUnavailableDates method with this:
   async getUnavailableDates(facilityId) {
     // 1. Get the facility the calendar is trying to load
-    const targetFacility = await this.facilityRepository.findById(facilityId);
+    const targetFacility = await this.facilityService.findById(facilityId);
     if (!targetFacility) throw new AppError("Facility not found.", 404);
 
     // 2. Fetch ALL upcoming bookings across the entire system
@@ -308,7 +308,7 @@ export class BookingService {
     try {
       // 1. Check if they are trying to book a standard Package
       if (bookingData.facilityId) {
-        const facility = await this.facilityRepository.findById(
+        const facility = await this.facilityService.findById(
           bookingData.facilityId,
         );
         if (!facility) throw new AppError("Facility not found.", 404);
@@ -359,7 +359,7 @@ export class BookingService {
             };
           }
           // Fetch the database IDs of the remaining available items so the frontend can easily book them
-          const availableFacilitiesDb = await this.facilityRepository.findAll({
+          const availableFacilitiesDb = await this.facilityService.findAll({
             name: takenComponents.length > 0 ? availableComponents : [],
           });
 
@@ -453,7 +453,7 @@ export class BookingService {
       customDetails = [];
 
       for (const item of bookingData.customFacilities) {
-        const fac = await this.facilityRepository.findById(item.facilityId);
+        const fac = await this.facilityService.findById(item.facilityId);
         if (!fac)
           throw new AppError(`Facility ID ${item.facilityId} not found.`, 404);
 
@@ -500,7 +500,7 @@ export class BookingService {
     }
     // 3. Process Standard Package/Hall Mode
     else if (bookingData.facilityId) {
-      const facility = await this.facilityRepository.findById(
+      const facility = await this.facilityService.findById(
         bookingData.facilityId,
       );
       if (!facility) throw new AppError("Facility not found.", 404);
@@ -675,8 +675,7 @@ export class BookingService {
       },
       include: [
         {
-          model: Invoice,
-          as: "invoice",
+          association: "invoice",
           required: false,
         },
       ],

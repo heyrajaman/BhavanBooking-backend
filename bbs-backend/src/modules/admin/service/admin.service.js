@@ -1,15 +1,16 @@
-import { BookingRepository } from "../../booking/repository/booking.repository.js";
+import { BookingAccessService } from "../../booking/service/booking.access.service.js";
 import { AuditRepository } from "../repository/audit.repository.js";
 import sequelize from "../../../config/database.js"; // Needed for transactions
 import { AppError } from "../../../utils/AppError.js";
 import { NotificationService } from "../../notification/service/notification.service.js";
 import minioClient from "../../../config/minio.js";
-import User from "../../user/model/user.model.js";
+import { UserService } from "../../user/service/user.service.js";
 import SystemSetting from "../model/systemSetting.model.js";
 
 export class AdminService {
   constructor() {
-    this.bookingRepository = new BookingRepository();
+    this.bookingService = new BookingAccessService();
+    this.userService = new UserService();
     this.auditRepository = new AuditRepository();
     this.notificationService = new NotificationService();
   }
@@ -21,7 +22,7 @@ export class AdminService {
     revisedTotalAmount,
   ) {
     // 1. Fetch the existing booking to get the "previous state"
-    const existingBooking = await this.bookingRepository.findById(bookingId);
+    const existingBooking = await this.bookingService.findById(bookingId);
 
     if (!existingBooking) {
       // Assuming you have AppError imported, otherwise throw new Error
@@ -139,7 +140,7 @@ export class AdminService {
     const signatureUrl = `${protocol}://${process.env.MINIO_ENDPOINT}${port}/${bucketName}/${fileName}`;
 
     // 4. Update the Admin's profile in the database
-    const admin = await User.findByPk(adminId);
+    const admin = await this.userService.findById(adminId);
     if (!admin) {
       throw new AppError("Admin user not found.", 404);
     }
@@ -160,7 +161,7 @@ export class AdminService {
 
     // You can easily expand this later (e.g., filtering by date ranges or facilityId)
 
-    const bookings = await this.bookingRepository.findAll(filters);
+    const bookings = await this.bookingService.findAll(filters);
 
     // If you plan on using your DTO-based architecture here, you could map the
     // raw database models into Response DTOs before returning them.
@@ -169,7 +170,7 @@ export class AdminService {
 
   async verifyBookingByClerk(bookingId, clerkUserId) {
     // 1. Fetch the booking
-    const booking = await this.bookingRepository.findById(bookingId);
+    const booking = await this.bookingService.findById(bookingId);
 
     if (!booking) {
       throw new AppError("Booking not found", 404);
@@ -196,7 +197,7 @@ export class AdminService {
 
   async getBookingDetails(bookingId) {
     // 1. Fetch the data using our new repository method
-    const booking = await this.bookingRepository.findByIdWithDetails(bookingId);
+    const booking = await this.bookingService.findByIdWithDetails(bookingId);
 
     // 2. Protect against bad IDs
     if (!booking) {

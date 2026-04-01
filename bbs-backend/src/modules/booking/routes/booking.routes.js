@@ -12,7 +12,7 @@ import {
 } from "../dto/booking.request.dto.js";
 import { catchAsync } from "../../../utils/catchAsync.js";
 import { protect, restrictTo } from "../../../middlewares/auth.middleware.js";
-import { UuidParamDto } from "../../../middlewares/common.dto.js";
+import { UuidParamDto } from "../../../shared/dto/common.dto.js";
 import { uploadImage } from "../../../middlewares/upload.middleware.js";
 
 const router = Router();

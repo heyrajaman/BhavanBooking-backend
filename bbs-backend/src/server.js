@@ -20,7 +20,7 @@ const startServer = async () => {
   await initMinio();
 
   // 2. Initialize Background Workers (like the 7-day hold cancellation)
-  initBookingCronJobs();
+  await initBookingCronJobs();
 
   // 3. Start listening for incoming HTTP requests
   const server = app.listen(PORT, () => {
