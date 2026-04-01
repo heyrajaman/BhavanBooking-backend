@@ -44,11 +44,11 @@ export const CreateFacilityDto = Joi.object({
         Joi.object({
           id: Joi.string().required(),
           label: Joi.string().required(),
-          startTime: Joi.string()
-            .pattern(/^(\d|2[0-3]):?([0-5]\d)$/)
-            .required(), // Matches "HH:mm"
+         startTime: Joi.string()
+            .pattern(/^([01]\d|2[0-3]):([0-5]\d)$/)
+            .required(), 
           endTime: Joi.string()
-            .pattern(/^(\d|2[0-3]):?([0-5]\d)$/)
+            .pattern(/^([01]\d|2[0-3]):([0-5]\d)$/)
             .required(),
           price: Joi.number().min(0).required(),
         }),

@@ -5,7 +5,7 @@ import User from "../modules/user/model/user.model.js";
 import Booking from "../modules/booking/model/booking.model.js";
 import Facility from "../modules/facility/model/facility.model.js";
 import Invoice from "../modules/billing/model/invoice.model.js";
-
+import SystemSetting from "../modules/admin/model/systemSetting.model.js";
 // Load environment variables (ensure this happens before using process.env)
 dotenv.config({ quiet: true });
 
@@ -34,12 +34,14 @@ User.initModel(sequelize);
 Booking.initModel(sequelize);
 Facility.initModel(sequelize);
 Invoice.initModel(sequelize);
+SystemSetting.initModel(sequelize);
 
 const models = {
   User,
   Booking,
   Facility,
   Invoice,
+  SystemSetting
 };
 
 // 3. Execute the associations (Foreign Keys & Relationships)

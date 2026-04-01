@@ -13,57 +13,52 @@ export class FacilityService {
   /**
    * Create a new facility (Package or Custom)
    */
-  async createFacility(facilityData, files) {
-    const imageUrls = [];
-
-    // 1. Process and upload images if the user provided any
-    if (files && files.length > 0) {
+  /**
+   * Create a new facility (Package or Custom)
+   */
+  async createFacility(facilityData, imageFiles = []) {
+    // 1. Process and upload images to MinIO if they exist
+    if (imageFiles && imageFiles.length > 0) {
       const bucketName = process.env.MINIO_BUCKET_NAME;
       const minioEndpoint = process.env.MINIO_ENDPOINT;
+      const minioPort = process.env.MINIO_PORT || 9000;
+      const protocol = process.env.MINIO_USE_SSL === "true" ? "https" : "http";
 
-      for (const file of files) {
-        if (!file.buffer) continue;
+      const uploadedUrls = [];
 
-        try {
-          // Compress the image using Sharp
-          const compressedBuffer = await sharp(file.buffer)
-            .resize({ width: 1200, withoutEnlargement: true })
-            .jpeg({ quality: 80 })
-            .toBuffer();
+      for (const file of imageFiles) {
+        // Compress image using sharp
+        const compressedBuffer = await sharp(file.buffer)
+          .resize({ width: 1200, withoutEnlargement: true })
+          .jpeg({ quality: 80 })
+          .toBuffer();
 
-          // Generate a unique filename
-          const fileName = `facilities/fac-${Date.now()}-${Math.round(Math.random() * 1000)}.jpg`;
+        // Generate unique filename
+        const fileName = `seed-images/newfac-${Date.now()}-${Math.round(Math.random() * 1000)}.jpg`;
 
-          // Upload to Minio
-          await minioClient.putObject(
-            bucketName,
-            fileName,
-            compressedBuffer,
-            compressedBuffer.length,
-            { "Content-Type": "image/jpeg" },
-          );
+        // Upload to MinIO
+        await minioClient.putObject(
+          bucketName,
+          fileName,
+          compressedBuffer,
+          compressedBuffer.length,
+          { "Content-Type": "image/jpeg" },
+        );
 
-          // Construct the public URL and push to our array
-          const fileUrl = `${minioEndpoint}/${bucketName}/${fileName}`;
-          imageUrls.push(fileUrl);
-        } catch (error) {
-          console.error("Facility Image Upload Error:", error);
-          throw new AppError(
-            "Failed to process and upload facility images.",
-            500,
-          );
-        }
+        // Store the public URL
+        uploadedUrls.push(
+          `${protocol}://${minioEndpoint}:${minioPort}/${bucketName}/${fileName}`
+        );
       }
+
+      // Attach the URLs to the database payload
+      facilityData.images = uploadedUrls;
+    } else {
+      facilityData.images = [];
     }
 
-    // 2. Attach the generated URLs to the facility data payload
-    // Your facility model expects 'images' to be a JSON array of strings
-    facilityData.images = imageUrls;
-
-    // 3. Save everything to the database using your repository
-    const newFacility = await this.facilityRepository.create(facilityData);
-
-    return newFacility;
+    // 2. Save the facility data (with image URLs) to the database
+    return await this.facilityRepository.create(facilityData);
   }
   /**
    * Update an existing facility's pricing

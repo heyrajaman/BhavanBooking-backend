@@ -148,8 +148,10 @@ export class BookingService {
           { "Content-Type": "image/jpeg" },
         );
 
-        const minioEndpoint = process.env.MINIO_ENDPOINT;
-        return `${minioEndpoint}/${bucketName}/${fileName}`;
+      const protocol = process.env.MINIO_USE_SSL === "true" ? "https" : "http";
+        const port = process.env.MINIO_PORT ? `:${process.env.MINIO_PORT}` : "";
+        return `${protocol}://${process.env.MINIO_ENDPOINT}${port}/${bucketName}/${fileName}`;
+        
       } catch (sharpError) {
         console.error(`Sharp/Minio Error (${side}):`, sharpError);
         throw new AppError(
