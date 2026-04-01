@@ -21,6 +21,7 @@ router.post(
   "/offline-remaining",
   protect,
   restrictTo("CLERK", "ADMIN"),
+  restrictTo("CLERK", "ADMIN"),
   validateDto(OfflineRemainingDto),
   catchAsync(paymentController.verifyOfflineRemaining),
 );
