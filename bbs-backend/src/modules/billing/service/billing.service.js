@@ -1,15 +1,18 @@
 // src/modules/billing/service/billing.service.js
 import Invoice from "../model/invoice.model.js";
-import Booking from "../../booking/model/booking.model.js";
 import { AppError } from "../../../utils/AppError.js";
 import { PaymentService } from "../../payment/service/payment.service.js";
-import User from "../../user/model/user.model.js";
+import { UserService } from "../../user/service/user.service.js";
+import { BookingAccessService } from "../../booking/service/booking.access.service.js";
+import { AdminService } from "../../admin/service/admin.service.js";
 import minioClient from "../../../config/minio.js";
-import SystemSetting from "../../admin/model/systemSetting.model.js";
 
 export class BillingService {
   constructor() {
     this.paymentService = new PaymentService();
+    this.userService = new UserService();
+    this.bookingService = new BookingAccessService();
+    this.adminService = new AdminService();
   }
 
   // Helper function to generate a unique invoice number
@@ -25,7 +28,7 @@ export class BillingService {
    */
   async generateDraftInvoice(dto, clerkId) {
     // 1. Fetch the Booking AND the associated Customer User in one go
-    const booking = await Booking.findByPk(dto.bookingId);
+    const booking = await this.bookingService.findById(dto.bookingId);
     if (!booking) {
       throw new AppError("Booking not found", 404);
     }
@@ -37,7 +40,7 @@ export class BillingService {
       );
     }
 
-    const customer = await User.findByPk(booking.userId);
+    const customer = await this.userService.findById(booking.userId);
     if (!customer) {
       throw new AppError(
         "Customer associated with this booking not found",
@@ -101,13 +104,7 @@ export class BillingService {
       baseAmount + totalAdditionalAmount + totalDeductions - discountAmount,
     );
 
-    let taxSettings = await SystemSetting.findByPk(1);
-    if (!taxSettings) {
-      taxSettings = await SystemSetting.create({
-        cgstPercentage: 2.5,
-        sgstPercentage: 2.5,
-      });
-    }
+    const taxSettings = await this.adminService.getTaxSettings();
 
     const cgstRate = parseFloat(taxSettings.cgstPercentage) / 100;
     const sgstRate = parseFloat(taxSettings.sgstPercentage) / 100;
@@ -235,14 +232,12 @@ export class BillingService {
       where: { bookingId },
       include: [
         {
-          model: User,
-          as: "clerk",
+          association: "clerk",
           attributes: ["id", "fullName"],
         },
 
         {
-          model: User,
-          as: "admin",
+          association: "admin",
           attributes: ["id", "fullName", "signatureUrl"],
         },
       ],
@@ -264,10 +259,10 @@ export class BillingService {
       throw new AppError(`Invoice is already ${invoice.approvalStatus}`, 400);
     }
 
-    const booking = await Booking.findByPk(invoice.bookingId);
+    const booking = await this.bookingService.findById(invoice.bookingId);
     if (!booking) throw new AppError("Associated booking not found", 404);
 
-    const admin = await User.findByPk(adminId);
+    const admin = await this.userService.findById(adminId);
     if (!admin) throw new AppError("Admin not found", 404);
 
     // If Admin Rejects
@@ -405,15 +400,13 @@ export class BillingService {
       where: { bookingId },
       include: [
         {
-          model: Booking,
-          as: "booking",
+          association: "booking",
           where: { userId }, // This ensures User A can't see User B's invoice
           attributes: ["id", "status"],
         },
-        { model: User, as: "clerk", attributes: ["id", "fullName"] },
+        { association: "clerk", attributes: ["id", "fullName"] },
         {
-          model: User,
-          as: "admin",
+          association: "admin",
           attributes: ["id", "fullName", "signatureUrl"],
         },
       ],

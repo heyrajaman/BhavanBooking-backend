@@ -6,14 +6,7 @@ import helmet from "helmet";
 import morgan from "morgan";
 import cookieParser from "cookie-parser";
 
-// Import your domain routes
-import bookingRoutes from "./modules/booking/routes/booking.routes.js";
-import authRoutes from "./modules/user/routes/auth.routes.js";
-import facilityRoutes from "./modules/facility/routes/facility.routes.js";
-import billingRoutes from "./modules/billing/routes/billing.routes.js";
-import adminAuthRoutes from "./modules/admin/routes/admin.auth.routes.js";
-import paymentRoutes from "./modules/payment/routes/payment.routes.js";
-import settingRoutes from "./modules/admin/routes/setting.routes.js";
+import v1Routes from "./routes/v1/index.js";
 
 // Import the error handler and custom error class
 import { globalErrorHandler } from "./middlewares/error.middleware.js";
@@ -34,13 +27,7 @@ app.use(cookieParser());
 app.use(morgan("dev")); // Logs API requests to the terminal
 
 // 2. Mount your Routes
-app.use("/api/v1/auth", authRoutes);
-app.use("/api/v1/auth/admin", adminAuthRoutes);
-app.use("/api/v1/settings", settingRoutes);
-app.use("/api/v1/facilities", facilityRoutes);
-app.use("/api/v1/bookings", bookingRoutes);
-app.use("/api/v1/billing", billingRoutes);
-app.use("/api/v1/payments", paymentRoutes);
+app.use("/api/v1", v1Routes);
 
 // 3. Handle unhandled routes (404)
 app.use((req, res, next) => {

@@ -1,18 +1,14 @@
 // src/modules/facility/service/facility.service.js
 import { FacilityRepository } from "../repository/facility.repository.js";
-import { BookingRepository } from "../../booking/repository/booking.repository.js";
+import { BookingAccessService } from "../../booking/service/booking.access.service.js";
 import sharp from "sharp";
 import minioClient from "../../../config/minio.js";
-import { AppError } from "../../../utils/AppError.js";
 export class FacilityService {
   constructor() {
     this.facilityRepository = new FacilityRepository();
-    this.bookingRepository = new BookingRepository();
+    this.bookingService = new BookingAccessService();
   }
 
-  /**
-   * Create a new facility (Package or Custom)
-   */
   /**
    * Create a new facility (Package or Custom)
    */
@@ -47,7 +43,7 @@ export class FacilityService {
 
         // Store the public URL
         uploadedUrls.push(
-          `${protocol}://${minioEndpoint}:${minioPort}/${bucketName}/${fileName}`
+          `${protocol}://${minioEndpoint}:${minioPort}/${bucketName}/${fileName}`,
         );
       }
 
@@ -88,7 +84,7 @@ export class FacilityService {
 
     // 2. If dates are provided, filter availability!
     if (startDate && endDate) {
-      const overlaps = await this.bookingRepository.findOverlappingBookings(
+      const overlaps = await this.bookingService.findOverlappingBookings(
         startDate,
         endDate,
       );
@@ -193,5 +189,13 @@ export class FacilityService {
     }
 
     return await this.facilityRepository.delete(facilityId);
+  }
+
+  async findById(facilityId) {
+    return await this.facilityRepository.findById(facilityId);
+  }
+
+  async findAll(filters = {}) {
+    return await this.facilityRepository.findAll(filters);
   }
 }

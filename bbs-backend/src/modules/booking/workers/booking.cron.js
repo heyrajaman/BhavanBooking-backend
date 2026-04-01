@@ -1,20 +1,22 @@
 // src/modules/booking/workers/booking.cron.js
-import cron from "node-cron";
-import { BookingService } from "../service/booking.service.js";
+import { Queue } from "bullmq";
+import redisConnection from "../../../config/redis.js";
 
-const bookingService = new BookingService();
+const bookingQueue = new Queue("booking-jobs", {
+  connection: redisConnection,
+});
 
-export const initBookingCronJobs = () => {
-  // Runs every hour at minute 0
-  cron.schedule("0 * * * *", async () => {
-    try {
-      console.log("🕒 Cron check started: Looking for expired payments...");
-      await bookingService.processExpiredPayments();
-      console.log("🕒 Cron check finished.");
-    } catch (error) {
-      console.error("[CRON ERROR] Failed to process expired payments:", error);
-    }
-  });
+export const initBookingCronJobs = async () => {
+  await bookingQueue.add(
+    "process-expired-payments",
+    {},
+    {
+      repeat: { pattern: "0 * * * *" },
+      jobId: "process-expired-payments-hourly",
+      removeOnComplete: 50,
+      removeOnFail: 50,
+    },
+  );
 
-  console.log("🕒 Booking cron jobs initialized.");
+  console.log("🕒 Booking queue scheduler initialized (hourly repeat job).");
 };

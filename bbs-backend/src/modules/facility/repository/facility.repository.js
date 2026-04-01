@@ -25,9 +25,22 @@ export class FacilityRepository {
   /**
    * Fetches all available facilities/packages
    */
-  async findAll() {
+  async findAll(filters = {}) {
+    const where = { isActive: true };
+
+    Object.entries(filters || {}).forEach(([key, value]) => {
+      if (value === undefined || value === null) return;
+
+      if (Array.isArray(value)) {
+        where[key] = { [Op.in]: value };
+        return;
+      }
+
+      where[key] = value;
+    });
+
     return await Facility.findAll({
-      where: { isActive: true },
+      where,
     });
   }
 
