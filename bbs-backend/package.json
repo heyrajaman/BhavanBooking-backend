@@ -9,6 +9,8 @@
     "dev": "nodemon src/server.js",
     "worker:booking": "node src/modules/booking/workers/booking.worker.js",
     "dev:worker:booking": "nodemon src/modules/booking/workers/booking.worker.js",
+    "worker:billing": "node src/modules/billing/workers/billing.worker.js",
+    "dev:worker:billing": "nodemon src/modules/billing/workers/billing.worker.js",
     "lint:boundaries": "node scripts/check-module-boundaries.js",
     "seed:admin": "node src/seeders/admin.seed.js",
     "seed:facility": "node src/seeders/facility.seed.js"
@@ -34,7 +36,7 @@
     "multer": "^2.1.1",
     "mysql2": "^3.19.0",
     "nodemailer": "^8.0.1",
-    "puppeteer": "^24.40.0",
+    "pdfkit": "^0.17.2",
     "rate-limit-redis": "^4.3.1",
     "razorpay": "^2.9.6",
     "sequelize": "^6.37.7",

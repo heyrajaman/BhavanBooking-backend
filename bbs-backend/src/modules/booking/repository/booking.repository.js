@@ -121,4 +121,25 @@ export class BookingRepository {
       include: [{ model: Facility, as: "facility" }],
     });
   }
+
+  async findExpiredPaymentBookings(cutoffTime) {
+    return await Booking.findAll({
+      where: {
+        status: {
+          [Op.in]: ["PENDING_ADVANCE_PAYMENT", "AWAITING_CASH_PAYMENT"],
+        },
+        updatedAt: {
+          [Op.lt]: cutoffTime,
+        },
+      },
+      include: [
+        {
+          model: User,
+          as: "user",
+          attributes: ["id", "email", "fullName"],
+          required: false,
+        },
+      ],
+    });
+  }
 }

@@ -4,9 +4,57 @@ import { getCsrfCookieOptions } from "../utils/cookieOptions.js";
 
 const CSRF_COOKIE_NAME = "csrfToken";
 const CSRF_HEADER_NAME = "x-csrf-token";
+const AUTH_COOKIE_NAME = "jwt";
 
 const isStateChangingMethod = (method) =>
   !["GET", "HEAD", "OPTIONS"].includes(method);
+
+const hasBearerAuth = (req) => {
+  const authHeader = req.headers?.authorization;
+  return Boolean(authHeader && authHeader.startsWith("Bearer "));
+};
+
+const isAuthenticatedRequest = (req) =>
+  Boolean(
+    req.cookies?.[AUTH_COOKIE_NAME] &&
+    req.cookies?.[AUTH_COOKIE_NAME] !== "loggedout",
+  ) || hasBearerAuth(req);
+
+const getAllowedOrigins = () => {
+  const frontendUrl = process.env.FRONTEND_URL;
+  if (!frontendUrl) {
+    return [];
+  }
+
+  return frontendUrl
+    .split(",")
+    .map((origin) => origin.trim())
+    .filter(Boolean);
+};
+
+const isAllowedOrigin = (originHeader) => {
+  if (!originHeader) {
+    return true;
+  }
+
+  const allowedOrigins = getAllowedOrigins();
+  if (!allowedOrigins.length) {
+    return false;
+  }
+
+  try {
+    const normalizedOrigin = new URL(originHeader).origin;
+    return allowedOrigins.some((allowedOrigin) => {
+      try {
+        return new URL(allowedOrigin).origin === normalizedOrigin;
+      } catch {
+        return false;
+      }
+    });
+  } catch {
+    return false;
+  }
+};
 
 export const csrfProtection = (req, res, next) => {
   const csrfCookieOptions = getCsrfCookieOptions();
@@ -21,16 +69,21 @@ export const csrfProtection = (req, res, next) => {
     return next();
   }
 
-  // Enforce CSRF checks only for cookie-authenticated requests.
-  if (!req.cookies?.jwt) {
+  // Apply CSRF checks to any authenticated write request.
+  if (!isAuthenticatedRequest(req)) {
     return next();
+  }
+
+  const requestOrigin = req.get("origin");
+  if (!isAllowedOrigin(requestOrigin)) {
+    return next(new AppError("Invalid request origin.", 403));
   }
 
   const tokenFromHeader = req.get(CSRF_HEADER_NAME);
   if (!tokenFromHeader || tokenFromHeader !== csrfToken) {
     return next(
       new AppError(
-        "Invalid CSRF token. Send x-csrf-token header for state-changing requests.",
+        "Invalid CSRF token. Send x-csrf-token header for authenticated state-changing requests.",
         403,
       ),
     );

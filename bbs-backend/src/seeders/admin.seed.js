@@ -1,13 +1,29 @@
 // src/seeders/admin.seed.js
 import bcrypt from "bcrypt";
+import { DataTypes } from "sequelize";
 import User from "../modules/user/model/user.model.js";
 import sequelize from "../config/database.js";
+
+const ensureUsersSchema = async () => {
+  const queryInterface = sequelize.getQueryInterface();
+  const tableDefinition = await queryInterface.describeTable("users");
+
+  if (!tableDefinition.passwordChangedAt) {
+    await queryInterface.addColumn("users", "passwordChangedAt", {
+      type: DataTypes.DATE,
+      allowNull: true,
+    });
+    console.log("Added missing column users.passwordChangedAt");
+  }
+};
 
 const seedAdmin = async () => {
   try {
     // Connect to the database
     await sequelize.authenticate();
     console.log("Database connected for seeding...");
+
+    await ensureUsersSchema();
 
     // Check if an admin already exists to avoid duplicates
     const existingAdmin = await User.findOne({ where: { role: "ADMIN" } });

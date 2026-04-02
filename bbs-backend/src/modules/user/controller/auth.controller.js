@@ -1,9 +1,9 @@
 // bbs-backend/src/modules/user/controller/auth.controller.js
 import { AuthService } from "../service/auth.service.js";
 import {
-  getAuthCookieOptions,
-  getClearAuthCookieOptions,
-} from "../../../utils/cookieOptions.js";
+  sendLoginSuccess,
+  sendLogoutSuccess,
+} from "../../../utils/authUtils.js";
 
 export class AuthController {
   constructor() {
@@ -29,20 +29,15 @@ export class AuthController {
     const result = await this.authService.loginUser(mobile, password);
     const { userAccessToken, user } = result;
 
-    res.cookie("jwt", userAccessToken, getAuthCookieOptions());
-
-    return res.status(200).json({
-      success: true,
+    return sendLoginSuccess(res, {
+      token: userAccessToken,
+      user,
       message: "User login successful",
-      data: { user },
     });
   };
 
   logoutUser = async (req, res, next) => {
-    res.clearCookie("jwt", getClearAuthCookieOptions());
-    return res
-      .status(200)
-      .json({ success: true, message: "Logged out successfully" });
+    return sendLogoutSuccess(res);
   };
 
   getMyProfile = async (req, res, next) => {

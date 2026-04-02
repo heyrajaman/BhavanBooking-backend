@@ -1,11 +1,16 @@
 // src/modules/billing/service/billing.service.js
 import Invoice from "../model/invoice.model.js";
+import PDFDocument from "pdfkit";
 import { AppError } from "../../../utils/AppError.js";
 import { PaymentService } from "../../payment/service/payment.service.js";
 import { UserService } from "../../user/service/user.service.js";
 import { BookingAccessService } from "../../booking/service/booking.access.service.js";
 import { AdminService } from "../../admin/service/admin.service.js";
 import minioClient from "../../../config/minio.js";
+import { uploadMulterFileToMinio } from "../../../utils/minioUpload.js";
+import { enqueueInvoicePdfGeneration } from "../workers/billing.queue.js";
+import { InvoiceCalculatorService } from "./invoice-calculator.service.js";
+import { BillingApprovalSettlementService } from "./billing-approval-settlement.service.js";
 
 export class BillingService {
   constructor() {
@@ -13,6 +18,11 @@ export class BillingService {
     this.userService = new UserService();
     this.bookingService = new BookingAccessService();
     this.adminService = new AdminService();
+    this.invoiceCalculator = new InvoiceCalculatorService();
+    this.billingApprovalSettlementService =
+      new BillingApprovalSettlementService({
+        paymentService: this.paymentService,
+      });
   }
 
   // Helper function to generate a unique invoice number
@@ -59,91 +69,41 @@ export class BillingService {
       );
     }
 
-    const isDonation = dto.invoiceType === "DONATION";
-    const invoiceType = dto.invoiceType || "GENERAL";
-
-    // 2. Extract Trusted Data straight from the DB
-    const securityDeposit = parseFloat(booking.securityDeposit || 0);
-    const baseAmount = parseFloat(booking.calculatedAmount || 0);
-    const userId = customer.id;
-    // Note: Adjust 'fullName', 'email', 'phone' below if your User model uses slightly different column names (like firstName)
-    const customerName = isDonation ? dto.customerName : customer.fullName;
-    const customerEmail = isDonation ? dto.customerEmail : customer.email;
-    const customerPhone = isDonation ? dto.customerPhone : customer.mobile;
-    const billingAddress = isDonation
-      ? dto.billingAddress
-      : dto.billingAddress || null;
-
-    // --- 3. Base Pricing & Additional Items ---
-    const discountAmount = parseFloat(dto.discountAmount || 0);
-    const additionalItems = dto.additionalItems || [];
-
-    const totalAdditionalAmount = additionalItems.reduce(
-      (sum, item) => sum + parseFloat(item.amount),
-      0,
-    );
-
-    const electricityCharges = (dto.electricityUnitsConsumed || 0) * 14;
-    const cleaningCharges = parseFloat(dto.cleaningCharges || 0);
-    const generatorCharges = parseFloat(dto.generatorCharges || 0);
-
-    let totalPenalties = 0;
-    if (dto.damagesAndPenalties && dto.damagesAndPenalties.length > 0) {
-      totalPenalties = dto.damagesAndPenalties.reduce(
-        (sum, item) => sum + parseFloat(item.amount),
-        0,
-      );
-    }
-
-    const totalDeductions =
-      electricityCharges + cleaningCharges + generatorCharges + totalPenalties;
-
-    // --- 4. Auto-Calculate Taxes ---
-    const taxableAmount = Math.max(
-      0,
-      baseAmount + totalAdditionalAmount + totalDeductions - discountAmount,
-    );
-
     const taxSettings = await this.adminService.getTaxSettings();
+    const invoiceSnapshot =
+      this.invoiceCalculator.calculateDraftInvoiceSnapshot({
+        dto,
+        booking,
+        customer,
+        taxSettings,
+      });
 
-    const cgstRate = parseFloat(taxSettings.cgstPercentage) / 100;
-    const sgstRate = parseFloat(taxSettings.sgstPercentage) / 100;
-
-    const cgstAmount = isDonation
-      ? 0.0
-      : parseFloat((taxableAmount * cgstRate).toFixed(2));
-
-    const sgstAmount = isDonation
-      ? 0.0
-      : parseFloat((taxableAmount * sgstRate).toFixed(2));
-
-    const totalAmount = taxableAmount + cgstAmount + sgstAmount;
-    // --- 5. Post-Event Deduction Calculations ---
-
-    // --- 6. Final Refund / Balance Math ---
-    const grandTotalEventCost = totalAmount;
-
-    // What the user has already paid:
-    const totalPaidUpfront = baseAmount + securityDeposit;
-
-    // The net difference:
-    const netDifference = totalPaidUpfront - grandTotalEventCost;
-    let finalRefundAmount = 0;
-    let additionalBalanceDue = 0;
-
-    if (netDifference > 0) {
-      // We owe the user money
-      finalRefundAmount = parseFloat(netDifference.toFixed(2));
-    } else if (netDifference < 0) {
-      // The user owes us money
-      additionalBalanceDue = parseFloat(Math.abs(netDifference).toFixed(2));
-    }
-
-    const settlementMode = dto.settlementMode || "ONLINE";
-
-    const dueDate = ["CASH", "QR"].includes(settlementMode)
-      ? new Date()
-      : dto.dueDate;
+    const {
+      invoiceType,
+      settlementMode,
+      userId,
+      customerName,
+      customerEmail,
+      customerPhone,
+      billingAddress,
+      dueDate,
+      baseAmount,
+      additionalItems,
+      totalAdditionalAmount,
+      discountAmount,
+      cgstAmount,
+      sgstAmount,
+      totalAmount,
+      electricityUnitsConsumed,
+      electricityCharges,
+      cleaningCharges,
+      generatorCharges,
+      damagesAndPenalties,
+      totalDeductions,
+      securityDepositHeld,
+      finalRefundAmount,
+      additionalBalanceDue,
+    } = invoiceSnapshot;
 
     // --- 7. Save or Update ---
     if (existingInvoice) {
@@ -154,7 +114,7 @@ export class BillingService {
       existingInvoice.customerEmail = customerEmail;
       existingInvoice.customerPhone = customerPhone;
 
-      existingInvoice.billingAddress = dto.billingAddress;
+      existingInvoice.billingAddress = billingAddress;
       existingInvoice.dueDate = dueDate;
 
       existingInvoice.baseAmount = baseAmount;
@@ -166,13 +126,13 @@ export class BillingService {
       existingInvoice.sgstAmount = sgstAmount;
       existingInvoice.totalAmount = totalAmount;
 
-      existingInvoice.electricityUnitsConsumed = dto.electricityUnitsConsumed;
+      existingInvoice.electricityUnitsConsumed = electricityUnitsConsumed;
       existingInvoice.electricityCharges = electricityCharges;
       existingInvoice.cleaningCharges = cleaningCharges;
       existingInvoice.generatorCharges = generatorCharges;
-      existingInvoice.damagesAndPenalties = dto.damagesAndPenalties;
+      existingInvoice.damagesAndPenalties = damagesAndPenalties;
       existingInvoice.totalDeductions = totalDeductions;
-      existingInvoice.securityDepositHeld = securityDeposit;
+      existingInvoice.securityDepositHeld = securityDepositHeld;
       existingInvoice.finalRefundAmount = finalRefundAmount;
       existingInvoice.additionalBalanceDue = additionalBalanceDue;
 
@@ -198,7 +158,7 @@ export class BillingService {
       customerEmail: customerEmail,
       customerPhone: customerPhone,
 
-      billingAddress: dto.billingAddress,
+      billingAddress,
       dueDate: dueDate,
 
       baseAmount,
@@ -210,13 +170,13 @@ export class BillingService {
       sgstAmount,
       totalAmount,
 
-      electricityUnitsConsumed: dto.electricityUnitsConsumed,
+      electricityUnitsConsumed,
       electricityCharges,
       cleaningCharges,
       generatorCharges,
-      damagesAndPenalties: dto.damagesAndPenalties,
+      damagesAndPenalties,
       totalDeductions,
-      securityDepositHeld: securityDeposit,
+      securityDepositHeld,
       finalRefundAmount,
       additionalBalanceDue,
 
@@ -284,77 +244,150 @@ export class BillingService {
       );
     }
 
-    // 1. Process Refund if applicable
-    let refundDetails = null;
-    let approvalMessage = "Approved successfully."; // Base message
-
-    if (invoice.finalRefundAmount > 0) {
-      // --- NEW: CASH REFUND LOGIC ---
-      if (["CASH", "QR"].includes(invoice.settlementMode)) {
-        approvalMessage += ` Manual CASH refund of ₹${invoice.finalRefundAmount} to be handed to customer.`;
-        invoice.adminRemarks = approvalMessage;
-        invoice.paymentStatus = "REFUNDED";
-      }
-      // --- EXISTING: ONLINE REFUND LOGIC ---
-      else {
-        if (!booking.razorpayPaymentId) {
-          invoice.adminRemarks =
-            "Approved successfully. Manual refund required (No Payment ID found).";
-        } else {
-          try {
-            const refundResponse = await this.paymentService.processRefund(
-              booking.razorpayPaymentId,
-              invoice.finalRefundAmount,
-            );
-            refundDetails = refundResponse.id;
-            approvalMessage += ` Automatic online refund initiated (Refund ID: ${refundDetails}).`;
-            invoice.adminRemarks = approvalMessage;
-            invoice.paymentStatus = "REFUNDED";
-          } catch (error) {
-            console.warn("⚠️ Auto-refund failed:", error.message);
-            approvalMessage +=
-              " ⚠️ Auto-refund failed. MARKED FOR MANUAL REFUND.";
-            invoice.adminRemarks = `Manual refund of ₹${invoice.finalRefundAmount} required. (API Error)`;
-          }
-        }
-      }
-    } else if (invoice.additionalBalanceDue > 0) {
-      // NEW: Log cash collection if user owes money
-      if (["CASH", "QR"].includes(invoice.settlementMode)) {
-        approvalMessage += ` Additional CASH payment of ₹${invoice.additionalBalanceDue} collected at check-out.`;
-        invoice.adminRemarks = approvalMessage;
-        invoice.paymentStatus = "PAID"; // Mark as paid since cash was collected
-      } else {
-        invoice.adminRemarks =
-          "Approved successfully. Awaiting online payment of remaining balance.";
-      }
-    } else {
-      invoice.adminRemarks = "Approved successfully. No refund or balance due.";
-      invoice.paymentStatus = "PAID";
-    }
+    const { approvalMessage, refundDetails } =
+      await this.billingApprovalSettlementService.applySettlement(
+        invoice,
+        booking,
+      );
 
     // 2. Save Invoice Status
     invoice.approvalStatus = "APPROVED";
     invoice.approvedBy = adminId;
     invoice.adminSignatureUrl = admin.signatureUrl;
 
-    // If no additional balance is due, we can mark payment as finalized/paid based on your business logic
-    if (invoice.additionalBalanceDue === 0 && invoice.totalAmount > 0) {
-      invoice.paymentStatus = "PAID";
-    }
-
-    if (!invoice.adminRemarks) invoice.adminRemarks = approvalMessage;
     await invoice.save();
 
     // 3. Complete the Booking
     booking.status = "CHECKED_OUT";
     await booking.save();
 
+    let pdfGenerationQueued = false;
+    try {
+      await enqueueInvoicePdfGeneration(invoice.id);
+      pdfGenerationQueued = true;
+    } catch (error) {
+      console.error(
+        `⚠️ Could not enqueue invoice PDF generation for ${invoice.id}:`,
+        error.message,
+      );
+    }
+
     return {
       message: approvalMessage,
       refundId: refundDetails,
       settlementReport: invoice,
+      pdfGenerationQueued,
     };
+  }
+
+  async generateAndUploadInvoicePdf(invoiceId) {
+    const invoice = await Invoice.findByPk(invoiceId);
+    if (!invoice) {
+      throw new AppError("Invoice not found", 404);
+    }
+
+    if (invoice.approvalStatus !== "APPROVED") {
+      throw new AppError(
+        `Invoice ${invoice.invoiceNumber} is not approved yet.`,
+        400,
+      );
+    }
+
+    const pdfBuffer = await this._buildInvoicePdfBuffer(invoice);
+
+    const bucketName = process.env.MINIO_BUCKET_NAME;
+    const fileName = `invoices/${invoice.invoiceNumber}-${Date.now()}.pdf`;
+
+    await minioClient.putObject(
+      bucketName,
+      fileName,
+      pdfBuffer,
+      pdfBuffer.length,
+      {
+        "Content-Type": "application/pdf",
+      },
+    );
+
+    const minioEndpoint = process.env.MINIO_ENDPOINT;
+    const pdfUrl = `${minioEndpoint}/${bucketName}/${fileName}`;
+
+    invoice.invoicePdfUrl = pdfUrl;
+    await invoice.save();
+
+    return pdfUrl;
+  }
+
+  _buildInvoicePdfBuffer(invoice) {
+    const formatMoney = (value) => Number(value || 0).toFixed(2);
+    const formatDate = (value) =>
+      new Date(value).toLocaleDateString("en-IN", {
+        year: "numeric",
+        month: "short",
+        day: "2-digit",
+      });
+
+    const safe = (value) =>
+      value === null || value === undefined ? "-" : String(value);
+
+    return new Promise((resolve, reject) => {
+      const doc = new PDFDocument({ size: "A4", margin: 40 });
+      const chunks = [];
+
+      doc.on("data", (chunk) => chunks.push(chunk));
+      doc.on("end", () => resolve(Buffer.concat(chunks)));
+      doc.on("error", reject);
+
+      doc.fontSize(20).text(`Invoice ${safe(invoice.invoiceNumber)}`);
+      doc.moveDown(0.5);
+      doc
+        .fontSize(11)
+        .fillColor("#4b5563")
+        .text(`Date: ${formatDate(invoice.invoiceDate)}`);
+      doc.text(`Due Date: ${formatDate(invoice.dueDate)}`);
+
+      doc.moveDown(1);
+      doc.fillColor("#111827").fontSize(14).text("Customer");
+      doc.moveDown(0.3);
+      doc.fontSize(11).text(safe(invoice.customerName));
+      doc.fillColor("#4b5563").text(safe(invoice.customerEmail));
+      doc.text(safe(invoice.customerPhone));
+      doc.text(safe(invoice.billingAddress));
+
+      doc.moveDown(1);
+      doc.fillColor("#111827").fontSize(14).text("Charges");
+      doc.moveDown(0.3);
+
+      const writeAmountRow = (label, amount) => {
+        doc.fillColor("#111827").fontSize(11).text(label, { continued: true });
+        doc.text(`INR ${formatMoney(amount)}`, { align: "right" });
+      };
+
+      writeAmountRow("Base Amount", invoice.baseAmount);
+      writeAmountRow("Additional Charges", invoice.totalAdditionalAmount);
+      writeAmountRow("CGST", invoice.cgstAmount);
+      writeAmountRow("SGST", invoice.sgstAmount);
+      writeAmountRow("Discount", `-${formatMoney(invoice.discountAmount)}`);
+      writeAmountRow("Deductions", invoice.totalDeductions);
+
+      doc.moveDown(0.3);
+      doc.font("Helvetica-Bold");
+      writeAmountRow("Total", invoice.totalAmount);
+      doc.font("Helvetica");
+
+      doc.moveDown(1);
+      doc.fillColor("#111827").fontSize(14).text("Settlement");
+      doc.moveDown(0.3);
+      writeAmountRow("Security Deposit Held", invoice.securityDepositHeld);
+      writeAmountRow("Final Refund Amount", invoice.finalRefundAmount);
+      writeAmountRow("Additional Balance Due", invoice.additionalBalanceDue);
+      doc
+        .fillColor("#111827")
+        .fontSize(11)
+        .text("Settlement Mode", { continued: true });
+      doc.text(safe(invoice.settlementMode), { align: "right" });
+
+      doc.end();
+    });
   }
 
   /**
@@ -367,24 +400,14 @@ export class BillingService {
       throw new AppError("Invoice not found", 404);
     }
 
-    // 2. Prepare MinIO Upload Details
-    const bucketName = process.env.MINIO_BUCKET_NAME;
-
     // Create a clean file name using the actual invoice number (e.g., invoices/INV-2026-12345-170834.pdf)
     const fileName = `invoices/${invoice.invoiceNumber}-${Date.now()}.pdf`;
 
-    // 3. Push the memory buffer to MinIO
-    await minioClient.putObject(
-      bucketName,
-      fileName,
-      file.buffer, // The PDF data in RAM
-      file.size,
-      { "Content-Type": file.mimetype },
-    );
-
-    // 4. Construct the URL to save in the database
-    const minioEndpoint = process.env.MINIO_ENDPOINT;
-    const pdfUrl = `${minioEndpoint}/${bucketName}/${fileName}`;
+    const { url: pdfUrl } = await uploadMulterFileToMinio({
+      file,
+      objectName: fileName,
+      cleanup: true,
+    });
 
     // 5. Update the Invoice record
     invoice.invoicePdfUrl = pdfUrl;

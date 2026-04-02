@@ -28,6 +28,10 @@ export default class User extends Model {
           type: DataTypes.STRING,
           allowNull: false,
         },
+        passwordChangedAt: {
+          type: DataTypes.DATE,
+          allowNull: true,
+        },
         role: {
           type: DataTypes.ENUM("ADMIN", "CLERK", "USER"),
           allowNull: false,

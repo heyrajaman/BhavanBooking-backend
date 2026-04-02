@@ -36,6 +36,20 @@ export const protect = catchAsync(async (req, res, next) => {
     );
   }
 
+  if (currentUser.passwordChangedAt) {
+    const changedAt = new Date(currentUser.passwordChangedAt);
+    const changedTimestamp = Math.floor(changedAt.getTime() / 1000);
+
+    if (decoded.iat < changedTimestamp) {
+      return next(
+        new AppError(
+          "User recently changed password! Please log in again.",
+          401,
+        ),
+      );
+    }
+  }
+
   // 4. Attach the user to the request object and proceed
   req.user = currentUser;
   next();

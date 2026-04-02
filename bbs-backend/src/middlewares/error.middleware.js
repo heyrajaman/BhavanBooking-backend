@@ -1,6 +1,30 @@
 // src/middlewares/error.middleware.js
+import multer from "multer";
+import { AppError } from "../utils/AppError.js";
+
+const normalizeMulterError = (err) => {
+  if (!(err instanceof multer.MulterError)) {
+    return err;
+  }
+
+  if (err.code === "LIMIT_FILE_SIZE") {
+    return new AppError("Uploaded file is too large.", 413);
+  }
+
+  if (err.code === "LIMIT_FILE_COUNT") {
+    return new AppError("Too many files uploaded.", 400);
+  }
+
+  if (err.code === "LIMIT_UNEXPECTED_FILE") {
+    return new AppError("Unexpected file field in upload.", 400);
+  }
+
+  return new AppError("Invalid upload payload.", 400);
+};
 
 export const globalErrorHandler = (err, req, res, next) => {
+  err = normalizeMulterError(err);
+
   // Default to 500 Internal Server Error if no status code is set
   err.statusCode = err.statusCode || 500;
   err.status = err.status || "error";

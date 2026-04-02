@@ -3,10 +3,10 @@ import { AuditRepository } from "../repository/audit.repository.js";
 import sequelize from "../../../config/database.js"; // Needed for transactions
 import { AppError } from "../../../utils/AppError.js";
 import { NotificationService } from "../../notification/service/notification.service.js";
-import minioClient from "../../../config/minio.js";
 import { UserService } from "../../user/service/user.service.js";
 import SystemSetting from "../model/systemSetting.model.js";
 import redisConnection from "../../../config/redis.js";
+import { uploadMulterFileToMinio } from "../../../utils/minioUpload.js";
 
 export class AdminService {
   constructor() {
@@ -110,28 +110,16 @@ export class AdminService {
   }
 
   async uploadAdminSignature(adminId, file) {
-    // 1. Prepare MinIO Upload Details
-    const bucketName = process.env.MINIO_BUCKET_NAME;
+    const fileExtension = (
+      file.originalname?.split(".").pop() || "png"
+    ).toLowerCase();
+    const objectName = `signatures/admin-${adminId}-${Date.now()}.${fileExtension}`;
 
-    // Create a clean, unique file path
-    const fileExtension = file.originalname.split(".").pop();
-    const fileName = `signatures/admin-${adminId}-${Date.now()}.${fileExtension}`;
-
-    // 2. Push the memory buffer to MinIO
-    await minioClient.putObject(
-      bucketName,
-      fileName,
-      file.buffer, // The file data in RAM
-      file.size,
-      { "Content-Type": file.mimetype },
-    );
-
-    // admin.service.js - inside uploadAdminSignature
-    const protocol = process.env.MINIO_USE_SSL === "true" ? "https" : "http";
-    const port = process.env.MINIO_PORT ? `:${process.env.MINIO_PORT}` : "";
-
-    // Correct URL generation
-    const signatureUrl = `${protocol}://${process.env.MINIO_ENDPOINT}${port}/${bucketName}/${fileName}`;
+    const { url: signatureUrl } = await uploadMulterFileToMinio({
+      file,
+      objectName,
+      cleanup: true,
+    });
 
     // 4. Update the Admin's profile in the database
     const admin = await this.userService.findById(adminId);

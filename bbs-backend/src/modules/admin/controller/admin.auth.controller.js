@@ -1,9 +1,9 @@
 // src/modules/admin/controller/admin.auth.controller.js
 import { AdminAuthService } from "../service/admin.auth.service.js";
 import {
-  getAuthCookieOptions,
-  getClearAuthCookieOptions,
-} from "../../../utils/cookieOptions.js";
+  sendLoginSuccess,
+  sendLogoutSuccess,
+} from "../../../utils/authUtils.js";
 
 export class AdminAuthController {
   constructor() {
@@ -16,12 +16,10 @@ export class AdminAuthController {
 
     const { adminAccessToken, user } = result;
 
-    res.cookie("jwt", adminAccessToken, getAuthCookieOptions());
-
-    return res.status(200).json({
-      success: true,
+    return sendLoginSuccess(res, {
+      token: adminAccessToken,
+      user,
       message: "Admin login successful",
-      data: { user },
     });
   };
 
@@ -31,20 +29,15 @@ export class AdminAuthController {
 
     const { clerkAccessToken, user } = result;
 
-    res.cookie("jwt", clerkAccessToken, getAuthCookieOptions());
-
-    return res.status(200).json({
-      success: true,
+    return sendLoginSuccess(res, {
+      token: clerkAccessToken,
+      user,
       message: "Clerk login successful",
-      data: { user },
     });
   };
 
   logoutAdmin = async (req, res, next) => {
-    res.clearCookie("jwt", getClearAuthCookieOptions());
-    return res
-      .status(200)
-      .json({ success: true, message: "Logged out successfully" });
+    return sendLogoutSuccess(res);
   };
 
   createClerk = async (req, res, next) => {

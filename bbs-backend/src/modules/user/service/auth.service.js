@@ -123,6 +123,7 @@ export class AuthService {
     // 2. Hash the new password before saving
     const salt = await bcrypt.genSalt(10);
     user.passwordHash = await bcrypt.hash(newPassword, salt);
+    user.passwordChangedAt = new Date();
 
     await user.save();
 

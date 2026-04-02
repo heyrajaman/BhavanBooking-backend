@@ -3,12 +3,29 @@ import { FacilityRepository } from "../repository/facility.repository.js";
 import { BookingAccessService } from "../../booking/service/booking.access.service.js";
 import sharp from "sharp";
 import minioClient from "../../../config/minio.js";
-import redisConnection from "../../../config/redis.js";
+import redisConnection, {
+  cacheTtl,
+  deleteKeysByPattern,
+  getJsonCache,
+  setJsonCache,
+} from "../../../config/redis.js";
+import { cleanupUploadedTempFile } from "../../../utils/minioUpload.js";
+
+const FACILITIES_BASE_CACHE_KEY = "facilities:all";
+const FACILITIES_AVAILABILITY_PREFIX = "facilities:availability";
+
+const buildAvailabilityCacheKey = (startDate, endDate) =>
+  `${FACILITIES_AVAILABILITY_PREFIX}:${encodeURIComponent(startDate)}:${encodeURIComponent(endDate)}`;
 
 export class FacilityService {
   constructor() {
     this.facilityRepository = new FacilityRepository();
     this.bookingService = new BookingAccessService();
+  }
+
+  async _invalidateFacilitiesCache() {
+    await redisConnection.del(FACILITIES_BASE_CACHE_KEY);
+    await deleteKeysByPattern(`${FACILITIES_AVAILABILITY_PREFIX}:*`);
   }
 
   /**
@@ -25,28 +42,28 @@ export class FacilityService {
       const uploadedUrls = [];
 
       for (const file of imageFiles) {
-        // Compress image using sharp
-        const compressedBuffer = await sharp(file.buffer)
-          .resize({ width: 1200, withoutEnlargement: true })
-          .jpeg({ quality: 80 })
-          .toBuffer();
+        try {
+          const compressedBuffer = await sharp(file.path || file.buffer)
+            .resize({ width: 1200, withoutEnlargement: true })
+            .jpeg({ quality: 80 })
+            .toBuffer();
 
-        // Generate unique filename
-        const fileName = `seed-images/newfac-${Date.now()}-${Math.round(Math.random() * 1000)}.jpg`;
+          const fileName = `seed-images/newfac-${Date.now()}-${Math.round(Math.random() * 1000)}.jpg`;
 
-        // Upload to MinIO
-        await minioClient.putObject(
-          bucketName,
-          fileName,
-          compressedBuffer,
-          compressedBuffer.length,
-          { "Content-Type": "image/jpeg" },
-        );
+          await minioClient.putObject(
+            bucketName,
+            fileName,
+            compressedBuffer,
+            compressedBuffer.length,
+            { "Content-Type": "image/jpeg" },
+          );
 
-        // Store the public URL
-        uploadedUrls.push(
-          `${protocol}://${minioEndpoint}:${minioPort}/${bucketName}/${fileName}`,
-        );
+          uploadedUrls.push(
+            `${protocol}://${minioEndpoint}:${minioPort}/${bucketName}/${fileName}`,
+          );
+        } finally {
+          await cleanupUploadedTempFile(file);
+        }
       }
 
       // Attach the URLs to the database payload
@@ -58,7 +75,7 @@ export class FacilityService {
     // 2. Save the facility data (with image URLs) to the database
     const newFacility = await this.facilityRepository.create(facilityData);
 
-    await redisConnection.del("facilities:all");
+    await this._invalidateFacilitiesCache();
 
     return newFacility;
   }
@@ -83,19 +100,30 @@ export class FacilityService {
       updateData,
     );
 
-    await redisConnection.del("facilities:all");
+    await this._invalidateFacilitiesCache();
 
     return updatedFacility;
   }
 
   async getAllFacilities(startDate, endDate) {
+    const hasDateRange = Boolean(startDate && endDate);
+    const availabilityCacheKey = hasDateRange
+      ? buildAvailabilityCacheKey(startDate, endDate)
+      : null;
+
+    if (availabilityCacheKey) {
+      const cachedAvailability = await getJsonCache(availabilityCacheKey);
+      if (cachedAvailability) {
+        return cachedAvailability;
+      }
+    }
+
     let facilitiesDb;
 
-    const cachedFacilities = await redisConnection.get("facilities:all");
+    const cachedFacilities = await getJsonCache(FACILITIES_BASE_CACHE_KEY);
 
     if (cachedFacilities) {
-      // Cache HIT: Parse the JSON string
-      facilitiesDb = JSON.parse(cachedFacilities);
+      facilitiesDb = cachedFacilities;
     } else {
       // Cache MISS: Fetch all facilities from DB
       facilitiesDb = await this.facilityRepository.findAll();
@@ -103,9 +131,10 @@ export class FacilityService {
       const plainFacilities = facilitiesDb.map((f) =>
         f.toJSON ? f.toJSON() : f,
       );
-      await redisConnection.set(
-        "facilities:all",
-        JSON.stringify(plainFacilities),
+      await setJsonCache(
+        FACILITIES_BASE_CACHE_KEY,
+        plainFacilities,
+        cacheTtl.facilitiesDefaultSeconds,
       );
 
       facilitiesDb = plainFacilities;
@@ -115,7 +144,7 @@ export class FacilityService {
     const facilities = facilitiesDb.map((f) => (f.toJSON ? f.toJSON() : f));
 
     // 2. If dates are provided, filter availability!
-    if (startDate && endDate) {
+    if (hasDateRange) {
       const overlaps = await this.bookingService.findOverlappingBookings(
         startDate,
         endDate,
@@ -167,6 +196,14 @@ export class FacilityService {
       facilities.forEach((fac) => (fac.isAvailableForDates = true));
     }
 
+    if (availabilityCacheKey) {
+      await setJsonCache(
+        availabilityCacheKey,
+        facilities,
+        cacheTtl.facilitiesAvailabilitySeconds,
+      );
+    }
+
     return facilities;
   }
 
@@ -187,24 +224,28 @@ export class FacilityService {
       const uploadedUrls = [];
 
       for (const file of newImageFiles) {
-        const compressedBuffer = await sharp(file.buffer)
-          .resize({ width: 1200, withoutEnlargement: true })
-          .jpeg({ quality: 80 })
-          .toBuffer();
+        try {
+          const compressedBuffer = await sharp(file.path || file.buffer)
+            .resize({ width: 1200, withoutEnlargement: true })
+            .jpeg({ quality: 80 })
+            .toBuffer();
 
-        const fileName = `seed-images/${facilityId}-${Date.now()}-${Math.round(Math.random() * 1000)}.jpg`;
+          const fileName = `seed-images/${facilityId}-${Date.now()}-${Math.round(Math.random() * 1000)}.jpg`;
 
-        await minioClient.putObject(
-          bucketName,
-          fileName,
-          compressedBuffer,
-          compressedBuffer.length,
-          { "Content-Type": "image/jpeg" },
-        );
+          await minioClient.putObject(
+            bucketName,
+            fileName,
+            compressedBuffer,
+            compressedBuffer.length,
+            { "Content-Type": "image/jpeg" },
+          );
 
-        uploadedUrls.push(
-          `${protocol}://${minioEndpoint}:${minioPort}/${bucketName}/${fileName}`,
-        );
+          uploadedUrls.push(
+            `${protocol}://${minioEndpoint}:${minioPort}/${bucketName}/${fileName}`,
+          );
+        } finally {
+          await cleanupUploadedTempFile(file);
+        }
       }
 
       updateData.images = [...(updateData.images || []), ...uploadedUrls];
@@ -215,7 +256,7 @@ export class FacilityService {
       updateData,
     );
 
-    await redisConnection.del("facilities:all");
+    await this._invalidateFacilitiesCache();
 
     return updatedFacility;
   }
@@ -229,7 +270,7 @@ export class FacilityService {
 
     const deleted = await this.facilityRepository.delete(facilityId);
 
-    await redisConnection.del("facilities:all");
+    await this._invalidateFacilitiesCache();
 
     return deleted;
   }

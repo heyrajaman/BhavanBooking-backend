@@ -1,5 +1,6 @@
 import * as Minio from "minio";
 import crypto from "crypto";
+import fs from "fs";
 import { AppError } from "../utils/AppError.js";
 
 const minioClient = new Minio.Client({
@@ -39,13 +40,25 @@ export const uploadFileToMinio = async (file, folderName = "uploads") => {
     "Content-Type": file.mimetype,
   };
 
+  let payload;
+  let payloadSize;
+  if (file.path) {
+    payload = fs.createReadStream(file.path);
+    payloadSize = file.size;
+  } else if (file.buffer) {
+    payload = file.buffer;
+    payloadSize = file.size;
+  } else {
+    throw new AppError("Uploaded file has no readable payload.", 400);
+  }
+
   try {
     // putObject takes: bucketName, objectName, stream/buffer, size, metaData
     await minioClient.putObject(
       bucketName,
       fileName,
-      file.buffer,
-      file.size,
+      payload,
+      payloadSize,
       metaData,
     );
 

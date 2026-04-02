@@ -79,6 +79,7 @@ export const processAdminApproval = catchAsync(async (req, res) => {
       refundId: result.refundId,
       settlementReport: result.settlementReport,
       signatureUrl: result.settlementReport.adminSignatureUrl,
+      pdfGenerationQueued: result.pdfGenerationQueued,
     },
   });
 });
