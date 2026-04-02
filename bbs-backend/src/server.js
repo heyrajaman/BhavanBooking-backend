@@ -2,7 +2,10 @@ import "./config/env.js";
 import app from "./app.js"; // The Express app we built in Step 13
 import { connectDatabase } from "./config/database.js";
 import { initMinio } from "./config/minio.js";
-import { initBookingCronJobs } from "./modules/booking/workers/booking.cron.js"; // From Step 9
+import {
+  createBookingQueue,
+  initBookingCronJobs,
+} from "./modules/booking/workers/booking.cron.js"; // From Step 9
 
 const PORT = process.env.PORT || 3000;
 
@@ -20,7 +23,8 @@ const startServer = async () => {
   await initMinio();
 
   // 2. Initialize Background Workers (like the 7-day hold cancellation)
-  await initBookingCronJobs();
+  const bookingQueue = createBookingQueue();
+  await initBookingCronJobs(bookingQueue);
 
   // 3. Start listening for incoming HTTP requests
   const server = app.listen(PORT, () => {

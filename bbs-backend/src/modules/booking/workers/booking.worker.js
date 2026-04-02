@@ -3,25 +3,35 @@ import { Worker } from "bullmq";
 import redisConnection from "../../../config/redis.js";
 import { BookingService } from "../service/booking.service.js";
 
+export const createBookingWorker = ({
+  bookingService,
+  connection = redisConnection,
+} = {}) => {
+  if (!bookingService) {
+    throw new Error("bookingService is required to create booking worker.");
+  }
+
+  return new Worker(
+    "booking-jobs",
+    async (job) => {
+      if (job.name === "process-expired-payments") {
+        console.log("🕒 Worker started: processing expired payments...");
+        await bookingService.processExpiredPayments();
+        console.log("🕒 Worker finished: expired payments processed.");
+        return;
+      }
+
+      console.warn(`⚠️ Unknown booking job received: ${job.name}`);
+    },
+    {
+      connection,
+      concurrency: 1,
+    },
+  );
+};
+
 const bookingService = new BookingService();
-
-const worker = new Worker(
-  "booking-jobs",
-  async (job) => {
-    if (job.name === "process-expired-payments") {
-      console.log("🕒 Worker started: processing expired payments...");
-      await bookingService.processExpiredPayments();
-      console.log("🕒 Worker finished: expired payments processed.");
-      return;
-    }
-
-    console.warn(`⚠️ Unknown booking job received: ${job.name}`);
-  },
-  {
-    connection: redisConnection,
-    concurrency: 1,
-  },
-);
+const worker = createBookingWorker({ bookingService });
 
 worker.on("failed", (job, error) => {
   console.error(

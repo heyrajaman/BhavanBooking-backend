@@ -4,6 +4,7 @@ import { razorpayInstance } from "../../../config/razorpay.js";
 import { BookingAccessService } from "../../booking/service/booking.access.service.js";
 import { AppError } from "../../../utils/AppError.js";
 import { NotificationService } from "../../notification/service/notification.service.js";
+import { ADVANCE_PAYMENT_DEADLINE_HOURS } from "../../../constants/payment.constants.js";
 
 export class PaymentService {
   constructor() {
@@ -32,12 +33,12 @@ export class PaymentService {
     const timeDiffHours =
       (now - new Date(booking.updatedAt)) / (1000 * 60 * 60);
 
-    if (timeDiffHours > 24) {
+    if (timeDiffHours > ADVANCE_PAYMENT_DEADLINE_HOURS) {
       booking.status = "CANCELLED";
-      booking.cancellationReason = "Advance payment deadline (24h) passed.";
+      booking.cancellationReason = `Advance payment deadline (${ADVANCE_PAYMENT_DEADLINE_HOURS}h) passed.`;
       await booking.save();
       throw new AppError(
-        "The 24-hour advance payment deadline has passed. The booking has been auto-cancelled.",
+        `The ${ADVANCE_PAYMENT_DEADLINE_HOURS}-hour advance payment deadline has passed. The booking has been auto-cancelled.`,
         400,
       );
     }
@@ -61,11 +62,11 @@ export class PaymentService {
     try {
       const user = await booking.getUser();
       if (user && user.email) {
-        this.notificationService
-          .sendBookingConfirmationEmail(user.email, user.fullName, booking.id)
-          .catch((err) =>
-            console.error("Email failed, but booking confirmed:", err),
-          );
+        this.notificationService.sendBookingConfirmationEmail(
+          user.email,
+          user.fullName,
+          booking.id,
+        );
       }
     } catch (err) {
       console.error("Failed to fetch user for confirmation email", err);
@@ -111,8 +112,7 @@ export class PaymentService {
         bookingId: booking.id,
         paymentType: "ADVANCE",
         paymentMode: "CASH",
-        message:
-          "Please pay the advance amount in cash at the clerk desk within 24 hours to confirm your booking.",
+        message: `Please pay the advance amount in cash at the clerk desk within ${ADVANCE_PAYMENT_DEADLINE_HOURS} hours to confirm your booking.`,
       };
     }
 
@@ -197,11 +197,11 @@ export class PaymentService {
       if (user && user.email) {
         // We don't use 'await' here because we don't want the user to wait for the email
         // to send before getting their success response on the frontend!
-        this.notificationService
-          .sendBookingConfirmationEmail(user.email, user.fullName, booking.id)
-          .catch((err) =>
-            console.error("Email failed, but booking confirmed:", err),
-          );
+        this.notificationService.sendBookingConfirmationEmail(
+          user.email,
+          user.fullName,
+          booking.id,
+        );
       }
     } catch (err) {
       console.error("Failed to fetch user for confirmation email", err);

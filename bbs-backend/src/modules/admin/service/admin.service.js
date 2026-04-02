@@ -85,19 +85,12 @@ export class AdminService {
 
         if (user && user.email) {
           // Fire and forget (no 'await' so the Admin doesn't have to wait)
-          this.notificationService
-            .sendProvisionalHoldEmail(
-              user.email,
-              user.fullName,
-              existingBooking.id,
-              advanceAmountRequested,
-            )
-            .catch((err) =>
-              console.error(
-                "Email failed to send, but booking was approved:",
-                err,
-              ),
-            );
+          this.notificationService.sendProvisionalHoldEmail(
+            user.email,
+            user.fullName,
+            existingBooking.id,
+            advanceAmountRequested,
+          );
         }
       } catch (emailError) {
         // Catch any unexpected errors fetching the user so it doesn't crash the success response

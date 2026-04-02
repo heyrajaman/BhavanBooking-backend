@@ -2,11 +2,15 @@
 import { Queue } from "bullmq";
 import redisConnection from "../../../config/redis.js";
 
-const bookingQueue = new Queue("booking-jobs", {
-  connection: redisConnection,
-});
+export const createBookingQueue = (connection = redisConnection) => {
+  return new Queue("booking-jobs", {
+    connection,
+  });
+};
 
-export const initBookingCronJobs = async () => {
+export const initBookingCronJobs = async (
+  bookingQueue = createBookingQueue(),
+) => {
   await bookingQueue.add(
     "process-expired-payments",
     {},

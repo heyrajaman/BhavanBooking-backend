@@ -11,6 +11,7 @@ import { razorpayInstance } from "../../../config/razorpay.js";
 import sharp from "sharp";
 import minioClient from "../../../config/minio.js";
 import { validateFacilitySlots } from "../../../utils/timeValidator.js";
+import { ADVANCE_PAYMENT_DEADLINE_HOURS } from "../../../constants/payment.constants.js";
 
 export class BookingService {
   constructor() {
@@ -40,8 +41,9 @@ export class BookingService {
   }
 
   async processExpiredPayments() {
-    // Calculate the cutoff time (24 hours ago)
-    const twentyFourHoursAgo = new Date(Date.now() - 24 * 60 * 60 * 1000);
+    const cutoffTime = new Date(
+      Date.now() - ADVANCE_PAYMENT_DEADLINE_HOURS * 60 * 60 * 1000,
+    );
 
     // Find all active bookings stuck waiting for advance payment
     const expiredBookings = await Booking.findAll({
@@ -50,7 +52,7 @@ export class BookingService {
           [Op.in]: ["PENDING_ADVANCE_PAYMENT", "AWAITING_CASH_PAYMENT"],
         },
         updatedAt: {
-          [Op.lt]: twentyFourHoursAgo,
+          [Op.lt]: cutoffTime,
         },
       },
     });
@@ -66,8 +68,8 @@ export class BookingService {
         booking.status = "CANCELLED";
         booking.cancellationReason =
           booking.status === "AWAITING_CASH_PAYMENT"
-            ? "Auto-cancelled: Cash payment not marked within 24 hours."
-            : "Auto-cancelled: Online advance payment not received within 24 hours.";
+            ? `Auto-cancelled: Cash payment not marked within ${ADVANCE_PAYMENT_DEADLINE_HOURS} hours.`
+            : `Auto-cancelled: Online advance payment not received within ${ADVANCE_PAYMENT_DEADLINE_HOURS} hours.`;
 
         await booking.save();
 
@@ -148,10 +150,10 @@ export class BookingService {
           { "Content-Type": "image/jpeg" },
         );
 
-      const protocol = process.env.MINIO_USE_SSL === "true" ? "https" : "http";
+        const protocol =
+          process.env.MINIO_USE_SSL === "true" ? "https" : "http";
         const port = process.env.MINIO_PORT ? `:${process.env.MINIO_PORT}` : "";
         return `${protocol}://${process.env.MINIO_ENDPOINT}${port}/${bucketName}/${fileName}`;
-        
       } catch (sharpError) {
         console.error(`Sharp/Minio Error (${side}):`, sharpError);
         throw new AppError(
@@ -576,16 +578,12 @@ export class BookingService {
         const hardcodedReason =
           "The requested facility/time slot is already booked manually.";
 
-        this.notificationService
-          .sendBookingRejectionEmail(
-            user.email,
-            user.fullName,
-            booking.id,
-            hardcodedReason,
-          )
-          .catch((err) =>
-            console.error("Rejection email failed to send in background:", err),
-          );
+        this.notificationService.sendBookingRejectionEmail(
+          user.email,
+          user.fullName,
+          booking.id,
+          hardcodedReason,
+        );
       }
     } catch (emailError) {
       console.error("Failed to fetch user for rejection email:", emailError);
