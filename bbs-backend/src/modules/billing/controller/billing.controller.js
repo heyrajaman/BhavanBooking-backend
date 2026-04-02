@@ -2,6 +2,7 @@
 import { BillingService } from "../service/billing.service.js";
 import { catchAsync } from "../../../utils/catchAsync.js";
 import { AppError } from "../../../utils/AppError.js";
+import { getIO } from "../../../config/socket.js";
 
 const billingService = new BillingService();
 
@@ -11,6 +12,17 @@ export const generateDraftInvoice = catchAsync(async (req, res) => {
 
   // Pass the DTO-validated body and the clerk's ID to the service
   const invoice = await billingService.generateDraftInvoice(req.body, clerkId);
+
+  try {
+    const io = getIO();
+    io.to("admin-notifications").emit("new_invoice_draft", {
+      message: `Invoice #${invoice.invoiceNumber} has been drafted and is pending your approval.`,
+      invoiceId: invoice.id,
+      bookingId: invoice.bookingId,
+    });
+  } catch (err) {
+    console.error("Socket emit failed (New Invoice Draft):", err.message);
+  }
 
   res.status(201).json({
     status: "success",
@@ -46,13 +58,27 @@ export const processAdminApproval = catchAsync(async (req, res) => {
     adminId,
   );
 
+  try {
+    const io = getIO();
+    const status =
+      req.body.approvalStatus === "REJECTED" ? "REJECTED" : "APPROVED";
+
+    io.to("admin-notifications").emit("invoice_status_updated", {
+      message: `Invoice #${result.settlementReport.invoiceNumber} was ${status} by Admin.`,
+      invoiceId: invoiceId,
+      status: status,
+    });
+  } catch (err) {
+    console.error("Socket emit failed (Invoice Approval):", err.message);
+  }
+
   res.status(200).json({
     status: "success",
     message: result.message,
     data: {
       refundId: result.refundId,
       settlementReport: result.settlementReport,
-      signatureUrl: result.settlementReport.adminSignatureUrl
+      signatureUrl: result.settlementReport.adminSignatureUrl,
     },
   });
 });

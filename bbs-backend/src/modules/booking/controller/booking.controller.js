@@ -1,4 +1,5 @@
 // src/modules/booking/controller/booking.controller.js
+import { getIO } from "../../../config/socket.js";
 import { BookingResponseDto } from "../dto/booking.response.dto.js";
 import { BookingService } from "../service/booking.service.js";
 import { uploadFileToMinio } from "../../../config/minio.js";
@@ -23,6 +24,18 @@ export class BookingController {
     );
 
     const formattedBooking = new BookingResponseDto(newBooking);
+
+    try {
+      const io = getIO();
+      // Emits only to clients who joined the "admin-notifications" room
+      io.to("admin-notifications").emit("new_booking_request", {
+        message: "A new online booking request was submitted.",
+        bookingId: formattedBooking.id,
+        status: formattedBooking.status,
+      });
+    } catch (err) {
+      console.error("Socket emit failed (Admin Notification):", err.message);
+    }
 
     // 4. Return success response
     return res.status(201).json({
@@ -126,10 +139,22 @@ export class BookingController {
     // 4. Format the response
     const formattedBooking = new BookingResponseDto(newBooking);
 
+    try {
+      const io = getIO();
+      io.to("admin-notifications").emit("new_walkin_booking", {
+        message: `A new walk-in booking was created for ${user.fullName}.`,
+        bookingId: formattedBooking.id,
+        status: formattedBooking.status,
+        clerkId: clerkId,
+      });
+    } catch (err) {
+      console.error("Socket emit failed (Walk-in Notification):", err.message);
+    }
+
     return res.status(201).json({
       success: true,
       message: `Booking created successfully for ${user.fullName}. It is now PENDING_ADMIN_APPROVAL.`,
-      isNewUser: isNewUser, // Tells the frontend if they need to inform the user about an account being created
+      isNewUser: isNewUser,
       data: formattedBooking,
     });
   };
@@ -227,6 +252,17 @@ export class BookingController {
 
     const formattedBooking = new BookingResponseDto(checkedInBooking);
 
+    try {
+      const io = getIO();
+      io.to("admin-notifications").emit("booking_status_updated", {
+        message: `Booking #${formattedBooking.id} has been CHECKED IN.`,
+        bookingId: formattedBooking.id,
+        status: formattedBooking.status,
+      });
+    } catch (err) {
+      console.error("Socket emit failed (Check-In):", err.message);
+    }
+
     return res.status(200).json({
       success: true,
       message: "Guest successfully checked in.",
@@ -243,6 +279,17 @@ export class BookingController {
       await this.bookingService.checkOutBooking(bookingId);
 
     const formattedBooking = new BookingResponseDto(checkedOutBooking);
+
+    try {
+      const io = getIO();
+      io.to("admin-notifications").emit("booking_status_updated", {
+        message: `Booking #${formattedBooking.id} has been CHECKED OUT.`,
+        bookingId: formattedBooking.id,
+        status: formattedBooking.status,
+      });
+    } catch (err) {
+      console.error("Socket emit failed (Check-Out):", err.message);
+    }
 
     return res.status(200).json({
       success: true,
@@ -263,6 +310,17 @@ export class BookingController {
 
     // 3. Format the response using your existing DTO
     const formattedBooking = new BookingResponseDto(rejectedBooking);
+
+    try {
+      const io = getIO();
+      io.to("admin-notifications").emit("booking_status_updated", {
+        message: `Booking #${formattedBooking.id} was REJECTED.`,
+        bookingId: formattedBooking.id,
+        status: formattedBooking.status,
+      });
+    } catch (err) {
+      console.error("Socket emit failed (Reject):", err.message);
+    }
 
     // 4. Send success response
     return res.status(200).json({
@@ -309,6 +367,17 @@ export class BookingController {
       userRole,
       cancellationReason,
     );
+
+    try {
+      const io = getIO();
+      io.to("admin-notifications").emit("booking_status_updated", {
+        message: `Booking #${result.bookingId} was CANCELLED.`,
+        bookingId: result.bookingId,
+        status: result.status,
+      });
+    } catch (err) {
+      console.error("Socket emit failed (Cancel):", err.message);
+    }
 
     // 3. Send response
     res.status(200).json({

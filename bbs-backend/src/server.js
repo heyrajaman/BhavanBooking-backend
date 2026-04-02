@@ -1,13 +1,19 @@
+import http from "http";
 import "./config/env.js";
-import app from "./app.js"; // The Express app we built in Step 13
+import app from "./app.js";
 import { connectDatabase } from "./config/database.js";
 import { initMinio } from "./config/minio.js";
 import {
   createBookingQueue,
   initBookingCronJobs,
-} from "./modules/booking/workers/booking.cron.js"; // From Step 9
+} from "./modules/booking/workers/booking.cron.js";
+import { initSocket } from "./config/socket.js";
 
-const PORT = process.env.PORT || 3000;
+const PORT = process.env.PORT;
+
+const httpServer = http.createServer(app);
+
+initSocket(httpServer);
 
 // Catch synchronous errors that happen outside of Express (e.g., syntax errors)
 process.on("uncaughtException", (err) => {
@@ -27,7 +33,7 @@ const startServer = async () => {
   await initBookingCronJobs(bookingQueue);
 
   // 3. Start listening for incoming HTTP requests
-  const server = app.listen(PORT, () => {
+  const server = httpServer.listen(PORT, () => {
     console.log(
       `🚀 Server running in ${process.env.NODE_ENV || "development"} mode on port ${PORT}`,
     );

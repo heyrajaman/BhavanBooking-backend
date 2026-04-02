@@ -6,6 +6,7 @@ import { NotificationService } from "../../notification/service/notification.ser
 import minioClient from "../../../config/minio.js";
 import { UserService } from "../../user/service/user.service.js";
 import SystemSetting from "../model/systemSetting.model.js";
+import redisConnection from "../../../config/redis.js";
 
 export class AdminService {
   constructor() {
@@ -202,6 +203,11 @@ export class AdminService {
   }
 
   async getTaxSettings() {
+    const cachedSettings = await redisConnection.get("settings:tax");
+    if (cachedSettings) {
+      return JSON.parse(cachedSettings);
+    }
+
     let settings = await SystemSetting.findByPk(1);
 
     if (!settings) {
@@ -210,6 +216,9 @@ export class AdminService {
         sgstPercentage: 2.5,
       });
     }
+
+    await redisConnection.set("settings:tax", JSON.stringify(settings));
+
     return settings;
   }
 
@@ -227,6 +236,9 @@ export class AdminService {
     if (sgstPercentage !== undefined) settings.sgstPercentage = sgstPercentage;
 
     await settings.save();
+
+    await redisConnection.del("settings:tax");
+
     return settings;
   }
 }

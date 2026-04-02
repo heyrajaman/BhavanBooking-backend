@@ -3,6 +3,8 @@ import { FacilityRepository } from "../repository/facility.repository.js";
 import { BookingAccessService } from "../../booking/service/booking.access.service.js";
 import sharp from "sharp";
 import minioClient from "../../../config/minio.js";
+import redisConnection from "../../../config/redis.js";
+
 export class FacilityService {
   constructor() {
     this.facilityRepository = new FacilityRepository();
@@ -54,7 +56,11 @@ export class FacilityService {
     }
 
     // 2. Save the facility data (with image URLs) to the database
-    return await this.facilityRepository.create(facilityData);
+    const newFacility = await this.facilityRepository.create(facilityData);
+
+    await redisConnection.del("facilities:all");
+
+    return newFacility;
   }
   /**
    * Update an existing facility's pricing
@@ -72,12 +78,38 @@ export class FacilityService {
     if (newSecurityDeposit !== undefined)
       updateData.securityDeposit = newSecurityDeposit;
 
-    return await this.facilityRepository.update(facilityId, updateData);
+    const updatedFacility = await this.facilityRepository.update(
+      facilityId,
+      updateData,
+    );
+
+    await redisConnection.del("facilities:all");
+
+    return updatedFacility;
   }
 
   async getAllFacilities(startDate, endDate) {
-    // 1. Fetch all facilities from DB
-    const facilitiesDb = await this.facilityRepository.findAll();
+    let facilitiesDb;
+
+    const cachedFacilities = await redisConnection.get("facilities:all");
+
+    if (cachedFacilities) {
+      // Cache HIT: Parse the JSON string
+      facilitiesDb = JSON.parse(cachedFacilities);
+    } else {
+      // Cache MISS: Fetch all facilities from DB
+      facilitiesDb = await this.facilityRepository.findAll();
+
+      const plainFacilities = facilitiesDb.map((f) =>
+        f.toJSON ? f.toJSON() : f,
+      );
+      await redisConnection.set(
+        "facilities:all",
+        JSON.stringify(plainFacilities),
+      );
+
+      facilitiesDb = plainFacilities;
+    }
 
     // Convert Sequelize models to standard JSON objects so we can add new properties
     const facilities = facilitiesDb.map((f) => (f.toJSON ? f.toJSON() : f));
@@ -178,7 +210,14 @@ export class FacilityService {
       updateData.images = [...(updateData.images || []), ...uploadedUrls];
     }
 
-    return await this.facilityRepository.update(facilityId, updateData);
+    const updatedFacility = await this.facilityRepository.update(
+      facilityId,
+      updateData,
+    );
+
+    await redisConnection.del("facilities:all");
+
+    return updatedFacility;
   }
 
   async deleteFacility(facilityId) {
@@ -188,7 +227,11 @@ export class FacilityService {
       throw new Error("Facility not found.");
     }
 
-    return await this.facilityRepository.delete(facilityId);
+    const deleted = await this.facilityRepository.delete(facilityId);
+
+    await redisConnection.del("facilities:all");
+
+    return deleted;
   }
 
   async findById(facilityId) {
