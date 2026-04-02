@@ -1,5 +1,9 @@
 // src/modules/admin/controller/admin.auth.controller.js
 import { AdminAuthService } from "../service/admin.auth.service.js";
+import {
+  getAuthCookieOptions,
+  getClearAuthCookieOptions,
+} from "../../../utils/cookieOptions.js";
 
 export class AdminAuthController {
   constructor() {
@@ -12,12 +16,7 @@ export class AdminAuthController {
 
     const { adminAccessToken, user } = result;
 
-    res.cookie("jwt", adminAccessToken, {
-      httpOnly: true,
-      secure: process.env.NODE_ENV === "production",
-      sameSite: "lax",
-      maxAge: 24 * 60 * 60 * 1000,
-    });
+    res.cookie("jwt", adminAccessToken, getAuthCookieOptions());
 
     return res.status(200).json({
       success: true,
@@ -32,12 +31,7 @@ export class AdminAuthController {
 
     const { clerkAccessToken, user } = result;
 
-    res.cookie("jwt", clerkAccessToken, {
-      httpOnly: true,
-      secure: process.env.NODE_ENV === "production",
-      sameSite: "lax",
-      maxAge: 24 * 60 * 60 * 1000,
-    });
+    res.cookie("jwt", clerkAccessToken, getAuthCookieOptions());
 
     return res.status(200).json({
       success: true,
@@ -47,11 +41,7 @@ export class AdminAuthController {
   };
 
   logoutAdmin = async (req, res, next) => {
-    res.clearCookie("jwt", {
-      httpOnly: true,
-      secure: process.env.NODE_ENV === "production",
-      sameSite: "lax",
-    });
+    res.clearCookie("jwt", getClearAuthCookieOptions());
     return res
       .status(200)
       .json({ success: true, message: "Logged out successfully" });

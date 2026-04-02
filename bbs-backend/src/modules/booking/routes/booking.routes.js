@@ -14,6 +14,7 @@ import { catchAsync } from "../../../utils/catchAsync.js";
 import { protect, restrictTo } from "../../../middlewares/auth.middleware.js";
 import { UuidParamDto } from "../../../shared/dto/common.dto.js";
 import { uploadImage } from "../../../middlewares/upload.middleware.js";
+import { bookingCreateLimiter } from "../../../middlewares/rateLimit.middleware.js";
 
 const router = Router();
 const bookingController = new BookingController();
@@ -52,6 +53,7 @@ router.get(
 router.post(
   "/",
   protect, // 1. Ensure the user is logged in
+  bookingCreateLimiter,
   validateDto(CreateBookingDto), // 2. Validate the incoming form payload
   catchAsync(bookingController.createBooking), // 3. Execute the controller logic
 );

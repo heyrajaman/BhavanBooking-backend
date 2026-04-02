@@ -7,6 +7,7 @@ import { AdminLoginDto, CreateClerkDto } from "../dto/admin.auth.dto.js";
 import { catchAsync } from "../../../utils/catchAsync.js";
 import { protect, restrictTo } from "../../../middlewares/auth.middleware.js";
 import { uploadImage } from "../../../middlewares/upload.middleware.js";
+import { strictAuthLimiter } from "../../../middlewares/rateLimit.middleware.js";
 
 const router = Router();
 const adminAuthController = new AdminAuthController();
@@ -15,6 +16,7 @@ const adminController = new AdminController();
 // POST /api/v1/auth/admin/login (ONLY for Admins)
 router.post(
   "/login",
+  strictAuthLimiter,
   validateDto(AdminLoginDto),
   catchAsync(adminAuthController.adminLogin),
 );
@@ -22,6 +24,7 @@ router.post(
 // POST /api/v1/auth/admin/clerk/login (ONLY for Clerks)
 router.post(
   "/clerk/login",
+  strictAuthLimiter,
   validateDto(AdminLoginDto),
   catchAsync(adminAuthController.clerkLogin),
 );

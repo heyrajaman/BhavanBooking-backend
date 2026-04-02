@@ -7,12 +7,15 @@ import morgan from "morgan";
 import cookieParser from "cookie-parser";
 
 import v1Routes from "./routes/v1/index.js";
+import { globalLimiter } from "./middlewares/rateLimit.middleware.js";
+import { csrfProtection } from "./middlewares/csrf.middleware.js";
 
 // Import the error handler and custom error class
 import { globalErrorHandler } from "./middlewares/error.middleware.js";
 import { AppError } from "./utils/AppError.js";
 
 const app = express();
+app.set("trust proxy", 1);
 
 // 1. Global Middlewares
 app.use(helmet());
@@ -22,8 +25,10 @@ app.use(
     credentials: true,
   }),
 );
+app.use(globalLimiter);
 app.use(express.json()); // Parses incoming JSON payloads
 app.use(cookieParser());
+app.use(csrfProtection);
 app.use(morgan("dev")); // Logs API requests to the terminal
 
 // 2. Mount your Routes

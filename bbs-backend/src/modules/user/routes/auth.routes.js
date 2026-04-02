@@ -9,6 +9,7 @@ import {
   UserRegisterDto,
 } from "../dto/user.auth.dto.js";
 import { protect } from "../../../middlewares/auth.middleware.js";
+import { strictAuthLimiter } from "../../../middlewares/rateLimit.middleware.js";
 
 const router = Router();
 const authController = new AuthController();
@@ -19,6 +20,7 @@ const authController = new AuthController();
 // 3. authController processes the request
 router.post(
   "/user/register",
+  strictAuthLimiter,
   validateDto(UserRegisterDto),
   catchAsync(authController.registerUser),
 );
@@ -26,6 +28,7 @@ router.post(
 // POST /api/v1/auth/user/login
 router.post(
   "/user/login",
+  strictAuthLimiter,
   validateDto(UserLoginDto),
   catchAsync(authController.loginUser),
 );

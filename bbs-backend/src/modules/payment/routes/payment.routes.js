@@ -5,6 +5,7 @@ import { catchAsync } from "../../../utils/catchAsync.js";
 import { protect, restrictTo } from "../../../middlewares/auth.middleware.js";
 import { OfflineAdvanceDto, OfflineRemainingDto } from "../dto/payment.dto.js";
 import { validateDto } from "../../../middlewares/validate.js";
+import { paymentOrderLimiter } from "../../../middlewares/rateLimit.middleware.js";
 
 const router = Router();
 const paymentController = new PaymentController();
@@ -21,7 +22,6 @@ router.post(
   "/offline-remaining",
   protect,
   restrictTo("CLERK", "ADMIN"),
-  restrictTo("CLERK", "ADMIN"),
   validateDto(OfflineRemainingDto),
   catchAsync(paymentController.verifyOfflineRemaining),
 );
@@ -34,6 +34,7 @@ router.use(protect, restrictTo("USER"));
 // 1. Create Razorpay order for the Advance Amount
 router.post(
   "/advance/create-order",
+  paymentOrderLimiter,
   catchAsync(paymentController.createAdvanceOrder),
 );
 
@@ -43,6 +44,7 @@ router.post("/advance/verify", catchAsync(paymentController.verifyAdvance));
 // 3. Create Razorpay order for the Remaining Amount
 router.post(
   "/remaining/create-order",
+  paymentOrderLimiter,
   catchAsync(paymentController.createRemainingOrder),
 );
 

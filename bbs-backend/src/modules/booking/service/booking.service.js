@@ -65,9 +65,12 @@ export class BookingService {
     // Process cancellations
     for (const booking of expiredBookings) {
       try {
+        const previousStatus = booking.status;
+
         booking.status = "CANCELLED";
+        booking.cancelledAt = new Date();
         booking.cancellationReason =
-          booking.status === "AWAITING_CASH_PAYMENT"
+          previousStatus === "AWAITING_CASH_PAYMENT"
             ? `Auto-cancelled: Cash payment not marked within ${ADVANCE_PAYMENT_DEADLINE_HOURS} hours.`
             : `Auto-cancelled: Online advance payment not received within ${ADVANCE_PAYMENT_DEADLINE_HOURS} hours.`;
 

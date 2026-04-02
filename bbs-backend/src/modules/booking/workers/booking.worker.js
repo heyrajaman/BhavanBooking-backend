@@ -1,6 +1,7 @@
 import "../../../config/env.js";
 import { Worker } from "bullmq";
 import redisConnection from "../../../config/redis.js";
+import { connectDatabase } from "../../../config/database.js";
 import { BookingService } from "../service/booking.service.js";
 
 export const createBookingWorker = ({
@@ -30,33 +31,53 @@ export const createBookingWorker = ({
   );
 };
 
-const bookingService = new BookingService();
-const worker = createBookingWorker({ bookingService });
+const startBookingWorker = async () => {
+  await connectDatabase();
 
-worker.on("failed", (job, error) => {
-  console.error(
-    `❌ Booking worker failed for job ${job?.name || "unknown"}:`,
-    error,
-  );
-});
+  const bookingService = new BookingService();
+  const worker = createBookingWorker({ bookingService });
 
-worker.on("completed", (job) => {
-  console.log(`✅ Booking worker completed job: ${job.name}`);
-});
+  worker.on("failed", (job, error) => {
+    console.error(
+      `❌ Booking worker failed for job ${job?.name || "unknown"}:`,
+      error,
+    );
+  });
 
-let isShuttingDown = false;
+  worker.on("completed", (job) => {
+    console.log(`✅ Booking worker completed job: ${job.name}`);
+  });
 
-const shutdown = async () => {
-  if (isShuttingDown) return;
-  isShuttingDown = true;
+  let isShuttingDown = false;
 
-  console.log("🛑 Shutting down booking worker...");
-  await worker.close();
-  await redisConnection.quit();
-  process.exit(0);
+  const shutdown = async (signal = "unknown") => {
+    if (isShuttingDown) return;
+    isShuttingDown = true;
+
+    console.log(`🛑 Shutting down booking worker (${signal})...`);
+
+    try {
+      await worker.close();
+    } catch (error) {
+      console.error("❌ Error while closing booking worker:", error);
+    }
+
+    try {
+      await redisConnection.quit();
+    } catch (error) {
+      console.error("❌ Error while closing Redis connection:", error);
+    }
+
+    process.exit(0);
+  };
+
+  process.once("SIGINT", () => shutdown("SIGINT"));
+  process.once("SIGTERM", () => shutdown("SIGTERM"));
+
+  console.log("🚀 Booking worker started and waiting for jobs...");
 };
 
-process.once("SIGINT", shutdown);
-process.once("SIGTERM", shutdown);
-
-console.log("🚀 Booking worker started and waiting for jobs...");
+startBookingWorker().catch((error) => {
+  console.error("❌ Failed to start booking worker:", error);
+  process.exit(1);
+});
