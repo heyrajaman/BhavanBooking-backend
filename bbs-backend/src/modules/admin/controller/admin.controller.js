@@ -4,6 +4,7 @@ import {
 } from "../../booking/dto/booking.response.dto.js";
 import { AdminService } from "../service/admin.service.js";
 import { AppError } from "../../../utils/AppError.js";
+import { getIO } from "../../../config/socket.js";
 
 export class AdminController {
   constructor() {
@@ -55,6 +56,18 @@ export class AdminController {
         revisedTotalAmount,
       );
 
+      try {
+        const io = getIO();
+        io.to(`user_${updatedBooking.userId}`).emit("booking_status_updated", {
+          message:
+            "Your booking has been approved! Please proceed to pay the advance amount.",
+          bookingId: updatedBooking.id,
+          status: updatedBooking.status,
+        });
+      } catch (err) {
+        console.error("Socket emit failed (Admin Approval):", err.message);
+      }
+
       return res.status(200).json({
         success: true,
         message:
@@ -103,6 +116,18 @@ export class AdminController {
         bookingId,
         clerkUserId,
       );
+
+      try {
+        const io = getIO();
+        io.to(`user_${updatedBooking.userId}`).emit("booking_status_updated", {
+          message:
+            "Your booking has been verified by the clerk and is awaiting final Admin approval.",
+          bookingId: updatedBooking.id,
+          status: updatedBooking.status,
+        });
+      } catch (err) {
+        console.error("Socket emit failed (Clerk Verification):", err.message);
+      }
 
       return res.status(200).json({
         success: true,
