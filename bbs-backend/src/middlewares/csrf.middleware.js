@@ -74,15 +74,6 @@ export const csrfProtection = (req, res, next) => {
     return next();
   }
 
-  // now skip for development mode
-  if (
-    process.env.NODE_ENV === "development" &&
-    req.headers["x-postman-testing"] === "true"
-  ) {
-    console.log("⚠️ CSRF Bypassed for Postman Testing");
-    return next();
-  }
-
   const requestOrigin = req.get("origin");
   if (!isAllowedOrigin(requestOrigin)) {
     return next(new AppError("Invalid request origin.", 403));
