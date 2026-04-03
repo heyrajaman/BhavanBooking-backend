@@ -361,7 +361,7 @@ export class BookingController {
     const { cancellationReason } = req.body;
 
     // 2. Call the service layer
-    const result = await this.bookingService.cancelBooking(
+    const result = await this.bookingService.requestCancellation(
       bookingId,
       userId,
       userRole,
@@ -370,8 +370,8 @@ export class BookingController {
 
     try {
       const io = getIO();
-      io.to("admin-notifications").emit("booking_status_updated", {
-        message: `Booking #${result.bookingId} was CANCELLED.`,
+      io.to("admin-notifications").emit("cancellation_requested", {
+        message: `Booking #${result.bookingId} requested cancellation. Approval required.`,
         bookingId: result.bookingId,
         status: result.status,
       });
@@ -383,6 +383,34 @@ export class BookingController {
     res.status(200).json({
       success: true,
       message: "Booking cancelled successfully",
+      data: result,
+    });
+  };
+
+  approveCancellation = async (req, res) => {
+    const bookingId = req.params.bookingId;
+    const adminId = req.user.id;
+
+    // Call the new approval and refund service
+    const result = await this.bookingService.approveCancellationAndRefund(
+      bookingId,
+      adminId,
+    );
+
+    try {
+      const io = getIO();
+      io.to("admin-notifications").emit("booking_status_updated", {
+        message: `Cancellation for Booking #${result.bookingId} was APPROVED.`,
+        bookingId: result.bookingId,
+        status: result.status,
+      });
+    } catch (err) {
+      console.error("Socket emit failed (Approve Cancel):", err.message);
+    }
+
+    res.status(200).json({
+      success: true,
+      message: "Cancellation approved and refund processed successfully.",
       data: result,
     });
   };

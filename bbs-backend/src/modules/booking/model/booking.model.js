@@ -49,10 +49,11 @@ export default class Booking extends Model {
             "CHECKED_IN",
             "CHECKED_OUT",
             "REJECTED",
+            "PENDING_CANCELLATION",
             "CANCELLED",
           ),
           allowNull: false,
-          defaultValue: "PENDING_CLERK_REVIEW", // Form always goes to the Clerk first
+          defaultValue: "PENDING_CLERK_REVIEW",
         },
         actualCheckInTime: {
           type: DataTypes.DATE,
@@ -78,9 +79,10 @@ export default class Booking extends Model {
           type: DataTypes.DECIMAL(10, 2),
           allowNull: true, // The Clerk will fill this in when they push to PENDING_ADVANCE_PAYMENT
         },
-        razorpayPaymentId: {
-          type: DataTypes.STRING,
-          allowNull: true, // We will fill this when the user successfully pays
+        razorpayPaymentIds: {
+          type: DataTypes.JSON,
+          allowNull: true,
+          defaultValue: [], // Initialize as an empty array
         },
         remainingAmountPaid: {
           type: DataTypes.DECIMAL(10, 2),

@@ -23,6 +23,15 @@ export class BookingResponseDto {
         ? Number(bookingModel.remainingAmountPaid)
         : 0,
       checkInPaymentMode: bookingModel.checkInPaymentMode || null,
+      razorpayPaymentIds: bookingModel.razorpayPaymentIds || [],
+      refundAmount: bookingModel.refundAmount
+        ? Number(bookingModel.refundAmount)
+        : 0,
+    };
+
+    this.cancellation = {
+      cancelledAt: bookingModel.cancelledAt || null,
+      cancellationReason: bookingModel.cancellationReason || null,
     };
 
     this.verification = {
@@ -97,6 +106,13 @@ export class BookingDetailResponseDto {
         ? Number(booking.remainingAmountPaid)
         : 0,
       checkInPaymentMode: booking.checkInPaymentMode || null,
+      razorpayPaymentIds: booking.razorpayPaymentIds || [],
+      refundAmount: booking.refundAmount ? Number(booking.refundAmount) : 0,
+    };
+
+    this.cancellation = {
+      cancelledAt: booking.cancelledAt || null,
+      cancellationReason: booking.cancellationReason || null,
     };
 
     this.verification = {

@@ -448,12 +448,20 @@ export class BookingService {
     return this.bookingCancellationService.getCancellationPolicy();
   }
 
-  async cancelBooking(bookingId, userId, userRole, cancellationReason) {
-    return this.bookingCancellationService.cancelBooking(
+  async requestCancellation(bookingId, userId, userRole, cancellationReason) {
+    return this.bookingCancellationService.requestCancellation(
       bookingId,
       userId,
       userRole,
       cancellationReason,
+    );
+  }
+
+  // 2. Admin Approves and Refunds
+  async approveCancellationAndRefund(bookingId, adminId) {
+    return this.bookingCancellationService.approveCancellationAndRefund(
+      bookingId,
+      adminId,
     );
   }
 

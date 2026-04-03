@@ -6,6 +6,33 @@ export class BookingCancellationService {
     this.razorpayInstance = razorpayInstance;
   }
 
+  _calculateRefund(booking, checkInDate, currentDate) {
+    const diffTime = checkInDate.getTime() - currentDate.getTime();
+    const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
+
+    const advanceAmount = Number(booking.advanceAmountRequested || 0);
+    const remainingAmount = Number(booking.remainingAmountPaid || 0);
+
+    let refundPercentage = 0;
+    let advanceRefundAmount = 0;
+
+    if (booking.status === "CONFIRMED") {
+      if (diffDays >= 30) {
+        refundPercentage = 50;
+      } else if (diffDays >= 15) {
+        refundPercentage = 25;
+      } else {
+        refundPercentage = 0;
+      }
+      advanceRefundAmount = (advanceAmount * refundPercentage) / 100;
+    }
+
+    // Total refund = Penalty applied to advance + 100% of the remaining amount
+    const totalRefundAmount = advanceRefundAmount + remainingAmount;
+
+    return { totalRefundAmount, refundPercentage };
+  }
+
   getCancellationPolicy() {
     return {
       rules: [
@@ -31,11 +58,9 @@ export class BookingCancellationService {
     };
   }
 
-  async cancelBooking(bookingId, userId, userRole, cancellationReason) {
+  async requestCancellation(bookingId, userId, userRole, cancellationReason) {
     const booking = await this.bookingModel.findByPk(bookingId);
-    if (!booking) {
-      throw new AppError("Booking not found", 404);
-    }
+    if (!booking) throw new AppError("Booking not found", 404);
 
     if (
       booking.userId !== userId &&
@@ -48,12 +73,16 @@ export class BookingCancellationService {
       );
     }
 
-    if (booking.status === "CANCELLED") {
-      throw new AppError("This booking is already cancelled", 400);
-    }
-    if (booking.status === "CHECKED_IN" || booking.status === "CHECKED_OUT") {
+    if (
+      [
+        "CANCELLED",
+        "PENDING_CANCELLATION",
+        "CHECKED_IN",
+        "CHECKED_OUT",
+      ].includes(booking.status)
+    ) {
       throw new AppError(
-        "Cannot cancel a booking that is already active or completed",
+        `Cannot cancel a booking in ${booking.status} status`,
         400,
       );
     }
@@ -68,76 +97,115 @@ export class BookingCancellationService {
       );
     }
 
-    const diffTime = checkInDate.getTime() - currentDate.getTime();
-    const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
+    // Calculate expected refund but DO NOT process it yet
+    const { totalRefundAmount, refundPercentage } = this._calculateRefund(
+      booking,
+      checkInDate,
+      currentDate,
+    );
 
-    const advanceAmount = Number(booking.advanceAmountRequested || 0);
-    let refundPercentage = 0;
-    let refundAmount = 0;
+    // Update status to pending
+    booking.status = "PENDING_CANCELLATION";
+    booking.refundAmount = totalRefundAmount; // Store expected refund
+    booking.cancellationReason = cancellationReason || null;
+    await booking.save();
 
-    if (booking.status === "CONFIRMED") {
-      if (diffDays >= 30) {
-        refundPercentage = 50;
-      } else if (diffDays >= 15) {
-        refundPercentage = 25;
-      } else {
-        refundPercentage = 0;
-      }
-      refundAmount = (advanceAmount * refundPercentage) / 100;
+    return {
+      bookingId: booking.id,
+      status: booking.status,
+      expectedRefundAmount: totalRefundAmount,
+      refundPercentage,
+      message:
+        "Cancellation request submitted. Awaiting admin approval for refund.",
+    };
+  }
+
+  // 2. ADMIN APPROVES CANCELLATION & PROCESSES REFUND
+  async approveCancellationAndRefund(bookingId, adminId) {
+    const booking = await this.bookingModel.findByPk(bookingId);
+    if (!booking) throw new AppError("Booking not found", 404);
+
+    if (booking.status !== "PENDING_CANCELLATION") {
+      throw new AppError(
+        "Only bookings in PENDING_CANCELLATION status can be approved for refund.",
+        400,
+      );
     }
 
     let statusMessage = "Booking cancelled successfully.";
+    const refundAmount = Number(booking.refundAmount || 0);
 
-    if (
-      refundAmount > 0 &&
-      booking.advancePaymentMode === "ONLINE" &&
-      booking.razorpayPaymentId
-    ) {
+    // Process Razorpay Refund if applicable
+    if (refundAmount > 0 && booking.advancePaymentMode === "ONLINE") {
       try {
-        const refundAmountInPaise = Math.round(refundAmount * 100);
+        const paymentIds = booking.razorpayPaymentIds || [];
 
-        await this.razorpayInstance.payments.refund(booking.razorpayPaymentId, {
-          amount: refundAmountInPaise,
-          notes: {
-            bookingId: booking.id,
-            reason: "Booking Cancellation",
-          },
-        });
+        if (paymentIds.length === 0)
+          throw new Error(
+            "No Razorpay Payment IDs found for this online booking.",
+          );
+
+        let remainingRefundRequired = refundAmount;
+
+        // Loop through all payment IDs (e.g. advance payment + remaining payment) to refund safely
+        for (const pId of paymentIds) {
+          if (remainingRefundRequired <= 0) break;
+
+          // Fetch original payment to know how much we can legally refund from this specific ID
+          const payment = await this.razorpayInstance.payments.fetch(pId);
+          const availableToRefundInRupees =
+            (payment.amount - payment.amount_refunded) / 100;
+
+          if (availableToRefundInRupees <= 0) continue;
+
+          const amountToRefundFromThisTxn = Math.min(
+            remainingRefundRequired,
+            availableToRefundInRupees,
+          );
+
+          await this.razorpayInstance.payments.refund(pId, {
+            amount: Math.round(amountToRefundFromThisTxn * 100),
+            notes: { bookingId: booking.id, reason: "Approved Cancellation" },
+          });
+
+          remainingRefundRequired -= amountToRefundFromThisTxn;
+        }
 
         booking.paymentStatus = "REFUNDED";
         statusMessage =
-          "Refund initiated successfully to your original online payment source.";
+          "Cancellation approved. Refund initiated successfully to original online sources.";
       } catch (error) {
         console.error("Razorpay Refund Error:", error);
         throw new AppError(
-          "Failed to process the refund with Razorpay. Please try again or contact support.",
+          "Failed to process the refund with Razorpay. Check logs.",
           500,
         );
       }
     } else if (refundAmount > 0) {
       booking.paymentStatus = "PARTIAL";
-      statusMessage = `Booking cancelled. A refund of ₹${refundAmount} is applicable. Please visit the clerk desk to collect your manual refund.`;
-    } else if (booking.status !== "CONFIRMED") {
-      statusMessage =
-        "Booking cancelled. Because no advance payment was made, no refund is required.";
+      statusMessage = `Cancellation approved. A refund of ₹${refundAmount} is applicable manually.`;
     } else {
-      statusMessage =
-        "Booking cancelled. As per policy, no refund is applicable for this cancellation window.";
+      statusMessage = "Cancellation approved. No refund applicable.";
     }
 
+    // Finalize Cancellation
     booking.status = "CANCELLED";
-    booking.refundAmount = refundAmount;
-    booking.cancelledAt = currentDate;
-    booking.cancellationReason = cancellationReason || null;
+    booking.cancelledAt = new Date();
+
+    // Log who approved it
+    booking.customDetails = {
+      ...booking.customDetails,
+      cancellationApprovedBy: adminId,
+      cancellationApprovedAt: new Date(),
+    };
 
     await booking.save();
 
     return {
       bookingId: booking.id,
       status: booking.status,
-      refundAmount,
-      refundPercentage,
-      cancelledAt: booking.cancelledAt,
+      refundAmount: booking.refundAmount,
+      paymentStatus: booking.paymentStatus,
       message: statusMessage,
     };
   }

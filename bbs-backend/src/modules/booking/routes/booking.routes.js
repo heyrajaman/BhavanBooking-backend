@@ -105,6 +105,14 @@ router.patch(
 );
 
 router.patch(
+  "/:bookingId/process-refund",
+  protect,
+  restrictTo("ADMIN", "CLERK"), // Staff only
+  validateDto(UuidParamDto, "params"), // Validate URL ID
+  catchAsync(bookingController.approveCancellation),
+);
+
+router.patch(
   "/:bookingId/complete-manual-refund",
   protect,
   restrictTo("CLERK", "ADMIN"), // Only staff can confirm cash was handed over

@@ -188,6 +188,8 @@ export class PaymentService {
     // Update the Booking Status to CONFIRMED and PARTIAL payment
     booking.paymentStatus = "PARTIAL";
     booking.status = "CONFIRMED";
+    booking.razorpayPaymentIds = [razorpay_payment_id];
+
     await booking.save();
 
     try {
@@ -312,7 +314,9 @@ export class PaymentService {
 
     // Update the Payment Status to COMPLETED!
     booking.paymentStatus = "COMPLETED";
-    booking.razorpayPaymentId = razorpay_payment_id;
+    const existingIds = booking.razorpayPaymentIds || [];
+    booking.razorpayPaymentIds = [...existingIds, razorpay_payment_id];
+
     await booking.save();
 
     return booking;
