@@ -119,9 +119,18 @@ export class AdminController {
 
       try {
         const io = getIO();
+
+        // 1. Notify the User on their dashboard
         io.to(`user_${updatedBooking.userId}`).emit("booking_status_updated", {
           message:
             "Your booking has been verified by the clerk and is awaiting final Admin approval.",
+          bookingId: updatedBooking.id,
+          status: updatedBooking.status,
+        });
+
+        // 2. Notify the Admin Dashboard to refresh instantly
+        io.to("admin-notifications").emit("booking_status_updated", {
+          message: `Booking #${updatedBooking.id} has been verified by a clerk and requires Admin approval.`,
           bookingId: updatedBooking.id,
           status: updatedBooking.status,
         });
