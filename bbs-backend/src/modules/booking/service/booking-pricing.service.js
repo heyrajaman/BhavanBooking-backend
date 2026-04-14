@@ -9,9 +9,15 @@ export class BookingPricingService {
 
   async processAndValidateBookingItems(bookingData) {
     let totalAmount = 0;
-    let totalSecurityDeposit = 0;
     const mainFacilityId = bookingData.facilityId || null;
     let customDetails = null;
+
+    const start = new Date(bookingData.startTime);
+    const end = new Date(bookingData.endTime);
+    const durationInMs = end.getTime() - start.getTime();
+    const durationInDays = Math.ceil(durationInMs / (1000 * 60 * 60 * 24));
+
+    let totalSecurityDeposit = durationInDays <= 1 ? 25000 : 50000;
 
     const unavailableFacilities = await this.getUnavailableFacilitiesSet(
       bookingData.startTime,
@@ -54,7 +60,6 @@ export class BookingPricingService {
         const itemTotal = itemUnitAmount * quantity;
 
         totalAmount += itemTotal;
-        totalSecurityDeposit += Number(fac.securityDeposit);
 
         customDetails.push({
           facilityId: fac.id,
@@ -95,7 +100,6 @@ export class BookingPricingService {
         bookingData.startTime,
         bookingData.endTime,
       );
-      totalSecurityDeposit = facility.securityDeposit;
     }
 
     return { totalAmount, totalSecurityDeposit, mainFacilityId, customDetails };

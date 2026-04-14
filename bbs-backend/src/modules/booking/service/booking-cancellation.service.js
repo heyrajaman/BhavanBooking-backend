@@ -10,13 +10,17 @@ export class BookingCancellationService {
     const diffTime = checkInDate.getTime() - currentDate.getTime();
     const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
 
-    const advanceAmount = Number(booking.advanceAmountRequested || 0);
-    const remainingAmount = Number(booking.remainingAmountPaid || 0);
+    const calculatedAmount = Number(booking.calculatedAmount || 0);
+    const securityDeposit = Number(booking.securityDeposit || 0);
 
     let refundPercentage = 0;
     let advanceRefundAmount = 0;
 
-    if (booking.status === "CONFIRMED") {
+    if (booking.status === "ON_HOLD") {
+      totalRefundAmount = securityDeposit * 0.2;
+      refundPercentage = 0;
+    } else if (booking.status === "CONFIRMED") {
+      // User paid 100% of the total.
       if (diffDays >= 30) {
         refundPercentage = 50;
       } else if (diffDays >= 15) {
@@ -24,11 +28,10 @@ export class BookingCancellationService {
       } else {
         refundPercentage = 0;
       }
-      advanceRefundAmount = (advanceAmount * refundPercentage) / 100;
-    }
 
-    // Total refund = Penalty applied to advance + 100% of the remaining amount
-    const totalRefundAmount = advanceRefundAmount + remainingAmount;
+      const baseRefund = (calculatedAmount * refundPercentage) / 100;
+      totalRefundAmount = baseRefund + securityDeposit;
+    }
 
     return { totalRefundAmount, refundPercentage };
   }
@@ -53,6 +56,12 @@ export class BookingCancellationService {
           refundPercentage: 0,
           description:
             "If cancelled less than 15 days before check-in, no refund is provided.",
+        },
+        {
+          daysBefore: null,
+          refundPercentage: 0,
+          description:
+            "HOLD BOOKINGS: If you have only paid the 20% hold amount, it is strictly non-refundable upon cancellation.",
         },
       ],
     };

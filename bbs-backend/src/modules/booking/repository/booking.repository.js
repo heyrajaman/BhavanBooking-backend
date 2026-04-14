@@ -122,14 +122,31 @@ export class BookingRepository {
     });
   }
 
-  async findExpiredPaymentBookings(cutoffTime) {
+  async findExpiredInitialPayments(cutoffTime) {
     return await Booking.findAll({
       where: {
-        status: {
-          [Op.in]: ["PENDING_ADVANCE_PAYMENT", "AWAITING_CASH_PAYMENT"],
-        },
+        status: "PENDING_PAYMENT",
         updatedAt: {
           [Op.lt]: cutoffTime,
+        },
+      },
+      include: [
+        {
+          model: User,
+          as: "user",
+          attributes: ["id", "email", "fullName"],
+          required: false,
+        },
+      ],
+    });
+  }
+
+  async findExpiredHoldBookings(currentDate = new Date()) {
+    return await Booking.findAll({
+      where: {
+        status: "ON_HOLD",
+        holdDeadline: {
+          [Op.lt]: currentDate,
         },
       },
       include: [

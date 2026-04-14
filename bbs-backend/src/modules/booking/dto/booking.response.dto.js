@@ -18,6 +18,10 @@ export class BookingResponseDto {
       calculatedAmount: bookingModel.calculatedAmount,
       securityDeposit: bookingModel.securityDeposit,
       advanceAmountRequested: bookingModel.advanceAmountRequested,
+      holdAmountPaid: bookingModel.holdAmountPaid
+        ? Number(bookingModel.holdAmountPaid)
+        : 0,
+      holdDeadline: bookingModel.holdDeadline || null,
       paymentStatus: bookingModel.paymentStatus,
       remainingAmountPaid: bookingModel.remainingAmountPaid
         ? Number(bookingModel.remainingAmountPaid)
@@ -101,6 +105,10 @@ export class BookingDetailResponseDto {
       calculatedAmount: booking.calculatedAmount,
       securityDeposit: booking.securityDeposit,
       advanceRequested: booking.advanceAmountRequested,
+      holdAmountPaid: bookingModel.holdAmountPaid
+        ? Number(bookingModel.holdAmountPaid)
+        : 0,
+      holdDeadline: bookingModel.holdDeadline || null,
       paymentStatus: booking.paymentStatus,
       remainingAmountPaid: booking.remainingAmountPaid
         ? Number(booking.remainingAmountPaid)

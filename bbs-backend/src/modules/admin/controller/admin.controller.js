@@ -38,21 +38,13 @@ export class AdminController {
   approveBooking = async (req, res, next) => {
     try {
       const { bookingId } = req.params;
-      const adminUserId = req.user.id; // Extracted from JWT token
+      const adminUserId = req.user.id;
 
-      const { advanceAmountRequested, revisedTotalAmount } = req.body;
-
-      if (!advanceAmountRequested) {
-        return res.status(400).json({
-          success: false,
-          message: "Please provide the advanceAmountRequested.",
-        });
-      }
+      const { revisedTotalAmount } = req.body;
 
       const updatedBooking = await this.adminService.approveBooking(
         bookingId,
         adminUserId,
-        advanceAmountRequested,
         revisedTotalAmount,
       );
 
@@ -74,7 +66,6 @@ export class AdminController {
           "Booking approved successfully. Waiting for user to pay the advance.",
         data: {
           status: updatedBooking.status,
-          advanceAmountRequested: updatedBooking.advanceAmountRequested,
           calculatedAmount: updatedBooking.calculatedAmount,
         },
       });

@@ -21,7 +21,7 @@ export class PaymentService {
     const booking = await this.bookingService.findById(bookingId);
     if (!booking) throw new AppError("Booking not found", 404);
 
-    const validStatuses = ["PENDING_ADVANCE_PAYMENT", "AWAITING_CASH_PAYMENT"];
+    const validStatuses = ["PENDING_PAYMENT", "AWAITING_CASH_PAYMENT"];
     if (!validStatuses.includes(booking.status)) {
       throw new AppError(
         `Cannot record advance payment. Booking is currently in ${booking.status} state.`,
@@ -43,18 +43,54 @@ export class PaymentService {
       );
     }
 
-    // Ensure the clerk actually collected enough money
-    if (Number(amountCollected) < Number(booking.advanceAmountRequested)) {
+    if (paymentOption === "HOLD") {
+      const msInMonth = 1000 * 60 * 60 * 24 * 30;
+      const timeUntilBooking =
+        new Date(booking.startTime).getTime() - new Date().getTime();
+
+      if (timeUntilBooking <= msInMonth) {
+        throw new AppError(
+          "Cannot place this booking on hold. The event is less than 1 month away, so full payment is required.",
+          400,
+        );
+      }
+    }
+
+    const totalCost =
+      Number(booking.calculatedAmount) + Number(booking.securityDeposit);
+    let requiredAmount = totalCost;
+    if (paymentOption === "HOLD") {
+      requiredAmount = totalCost * 0.2;
+    }
+
+    if (Number(amountCollected) < requiredAmount) {
       throw new AppError(
-        `Collected amount (₹${amountCollected}) is less than the requested advance (₹${booking.advanceAmountRequested}).`,
+        `Collected amount (₹${amountCollected}) is less than the required amount (₹${requiredAmount}).`,
         400,
       );
     }
 
-    // Update the Booking Status to CONFIRMED and record the offline details
-    booking.paymentStatus = "PARTIAL";
-    booking.status = "CONFIRMED";
-    booking.advancePaymentMode = paymentMode; // "CASH" or "QR"
+    // Apply Hold or Full status logic
+    if (paymentOption === "HOLD") {
+      booking.status = "ON_HOLD";
+      booking.paymentStatus = "PARTIAL";
+      booking.holdAmountPaid = requiredAmount;
+
+      const msInMonth = 1000 * 60 * 60 * 24 * 30;
+      const monthsAway = (new Date(booking.startTime) - new Date()) / msInMonth;
+      const deadline = new Date();
+      if (monthsAway > 3) {
+        deadline.setDate(deadline.getDate() + 30);
+      } else {
+        deadline.setDate(deadline.getDate() + 7);
+      }
+      booking.holdDeadline = deadline;
+    } else {
+      booking.status = "CONFIRMED";
+      booking.paymentStatus = "COMPLETED";
+    }
+
+    booking.advancePaymentMode = paymentMode;
     booking.advanceCollectedBy = clerkId;
 
     await booking.save();
@@ -76,9 +112,9 @@ export class PaymentService {
   }
 
   /**
-   * 1. Creates a Razorpay order for the initial Advance Payment
+   * 1. Creates a Razorpay order for the Initial Payment (Hold or Full)
    */
-  async createAdvancePaymentOrder(userId, bookingId, paymentMode = "ONLINE") {
+  async createInitialPaymentOrder(userId, bookingId, paymentOption = "FULL") {
     const booking = await this.bookingService.findById(bookingId);
     if (!booking) throw new AppError("Booking not found", 404);
 
@@ -89,42 +125,61 @@ export class PaymentService {
       );
     }
 
-    if (booking.status !== "PENDING_ADVANCE_PAYMENT") {
+    // Checking for the new enum status
+    if (booking.status !== "PENDING_PAYMENT") {
       throw new AppError(
-        `Cannot initiate advance payment. Booking status is ${booking.status}.`,
+        `Cannot initiate payment. Booking status is ${booking.status}.`,
         400,
       );
     }
 
     if (!booking.aadharFrontImageUrl || !booking.aadharBackImageUrl) {
       throw new AppError(
-        "Aadhaar verification required. Please upload both the front and back photos of your Aadhaar card before proceeding with the payment.",
+        "Aadhaar verification required. Please upload both the front and back photos.",
         400,
       );
     }
 
-    if (paymentMode === "CASH") {
+    // Calculate total cost
+    const totalCost =
+      Number(booking.calculatedAmount) + Number(booking.securityDeposit);
+
+    // Determine the amount based on user's choice
+    let amountToPay = totalCost;
+    if (paymentOption === "HOLD") {
+      const msInMonth = 1000 * 60 * 60 * 24 * 30;
+      const timeUntilBooking =
+        new Date(booking.startTime).getTime() - new Date().getTime();
+
+      if (timeUntilBooking <= msInMonth) {
+        throw new AppError(
+          "The 'Hold Date' option is only available for bookings more than 1 month away. Please select full payment to confirm your booking.",
+          400,
+        );
+      }
+
+      amountToPay = totalCost * 0.2;
+    }
+
+    if (paymentMode === "CASH" || paymentMode === "QR") {
       booking.status = "AWAITING_CASH_PAYMENT";
-      booking.advancePaymentMode = "CASH";
       await booking.save();
 
       return {
         bookingId: booking.id,
-        paymentType: "ADVANCE",
-        paymentMode: "CASH",
-        message: `Please pay the advance amount in cash at the clerk desk within ${ADVANCE_PAYMENT_DEADLINE_HOURS} hours to confirm your booking.`,
+        paymentOption: paymentOption,
+        paymentMode: paymentMode,
+        amountToPay: amountToPay,
+        message: `Please pay ₹${amountToPay} at the desk to ${paymentOption === "HOLD" ? "hold" : "confirm"} your booking.`,
       };
     }
 
-    // Create the Razorpay Order for the Advance Amount
-    const amountInPaise = Math.round(
-      Number(booking.advanceAmountRequested) * 100,
-    );
+    const amountInPaise = Math.round(amountToPay * 100);
 
     const options = {
       amount: amountInPaise,
       currency: "INR",
-      receipt: `adv_${booking.id.replace(/-/g, "")}`.substring(0, 40),
+      receipt: `init_${booking.id.replace(/-/g, "")}`.substring(0, 40),
     };
 
     const order = await razorpayInstance.orders.create(options);
@@ -149,21 +204,21 @@ export class PaymentService {
       amount: order.amount,
       currency: order.currency,
       bookingId: booking.id,
-      paymentType: "ADVANCE",
-      paymentMode: "ONLINE",
+      paymentOption: paymentOption, // 'HOLD' or 'FULL'
       keyId: process.env.RAZORPAY_KEY_ID,
     };
   }
 
   /**
-   * 2. Verifies the Advance Payment and Confirms the Booking
+   * 2. Verifies the Initial Payment and sets Status to ON_HOLD or CONFIRMED
    */
-  async verifyAdvancePayment(userId, paymentData, currentUser = null) {
+  async verifyInitialPayment(userId, paymentData) {
     const {
       razorpay_order_id,
       razorpay_payment_id,
       razorpay_signature,
       bookingId,
+      paymentOption, // Must be passed from frontend to know what they paid for
     } = paymentData;
 
     // Verify the Razorpay Signature
@@ -185,30 +240,58 @@ export class PaymentService {
       throw new AppError("Booking not found or unauthorized.", 404);
     }
 
-    // Update the Booking Status to CONFIRMED and PARTIAL payment
-    booking.paymentStatus = "PARTIAL";
-    booking.status = "CONFIRMED";
-    booking.razorpayPaymentIds = [razorpay_payment_id];
+    const totalCost =
+      Number(booking.calculatedAmount) + Number(booking.securityDeposit);
+
+    if (paymentOption === "HOLD") {
+      booking.status = "ON_HOLD";
+      booking.paymentStatus = "PARTIAL";
+      booking.holdAmountPaid = totalCost * 0.2;
+
+      // Calculate Deadline based on start date distance
+      const msInMonth = 1000 * 60 * 60 * 24 * 30;
+      const monthsAway = (new Date(booking.startTime) - new Date()) / msInMonth;
+
+      const deadline = new Date();
+      if (monthsAway > 3) {
+        deadline.setDate(deadline.getDate() + 30); // 1 month deadline
+      } else {
+        deadline.setDate(deadline.getDate() + 7); // 1 week deadline
+      }
+      booking.holdDeadline = deadline;
+    } else {
+      // Option 2: Full payment
+      booking.status = "CONFIRMED";
+      booking.paymentStatus = "COMPLETED"; // Fully paid upfront
+    }
+
+    const existingIds = booking.razorpayPaymentIds || [];
+    booking.razorpayPaymentIds = [...existingIds, razorpay_payment_id];
 
     await booking.save();
 
     try {
-      // We must fetch the user from the booking to get their email!
       const user = await booking.getUser();
-
       if (user && user.email) {
-        // We don't use 'await' here because we don't want the user to wait for the email
-        // to send before getting their success response on the frontend!
-        this.notificationService.sendBookingConfirmationEmail(
-          user.email,
-          user.fullName,
-          booking.id,
-        );
+        if (paymentOption === "HOLD") {
+          this.notificationService.sendHoldConfirmationEmail(
+            user.email,
+            user.fullName,
+            booking.id,
+            booking.holdAmountPaid,
+            booking.holdDeadline,
+          );
+        } else {
+          this.notificationService.sendBookingConfirmationEmail(
+            user.email,
+            user.fullName,
+            booking.id,
+          );
+        }
       }
     } catch (err) {
       console.error("Failed to fetch user for confirmation email", err);
     }
-    // --- BUG FIX ENDS HERE ---
 
     return booking;
   }
@@ -228,9 +311,9 @@ export class PaymentService {
     }
 
     // State Machine Check: Must be CONFIRMED but only PARTIAL payment made
-    if (booking.status !== "CONFIRMED" || booking.paymentStatus !== "PARTIAL") {
+    if (booking.status !== "ON_HOLD" || booking.paymentStatus !== "PARTIAL") {
       throw new AppError(
-        "This booking is not eligible for a remaining balance payment.",
+        "This booking is not eligible for a remaining balance payment. It must be ON HOLD.",
         400,
       );
     }
@@ -238,7 +321,7 @@ export class PaymentService {
     // Calculate the Remaining Amount
     const totalCost =
       Number(booking.calculatedAmount) + Number(booking.securityDeposit);
-    const advancePaid = Number(booking.advanceAmountRequested);
+    const advancePaid = Number(booking.holdAmountPaid || 0);
     const remainingAmount = totalCost - advancePaid;
 
     if (remainingAmount <= 0) {
@@ -313,6 +396,7 @@ export class PaymentService {
     }
 
     // Update the Payment Status to COMPLETED!
+    booking.status = "CONFIRMED";
     booking.paymentStatus = "COMPLETED";
     const existingIds = booking.razorpayPaymentIds || [];
     booking.razorpayPaymentIds = [...existingIds, razorpay_payment_id];
@@ -328,10 +412,9 @@ export class PaymentService {
     const booking = await this.bookingRepository.findById(bookingId);
     if (!booking) throw new AppError("Booking not found", 404);
 
-    // State Machine Check: Must be CONFIRMED and PARTIAL
-    if (booking.status !== "CONFIRMED" || booking.paymentStatus !== "PARTIAL") {
+    if (booking.status !== "ON_HOLD" || booking.paymentStatus !== "PARTIAL") {
       throw new AppError(
-        `Cannot record remaining payment. Booking status is ${booking.status} and payment status is ${booking.paymentStatus}.`,
+        `Cannot record remaining payment. Booking status is ${booking.status}. It must be ON_HOLD.`,
         400,
       );
     }
@@ -339,7 +422,7 @@ export class PaymentService {
     // Calculate the Remaining Amount
     const totalCost =
       Number(booking.calculatedAmount) + Number(booking.securityDeposit);
-    const advancePaid = Number(booking.advanceAmountRequested);
+    const advancePaid = Number(booking.holdAmountPaid || 0);
     const remainingAmount = totalCost - advancePaid;
 
     if (remainingAmount <= 0) {
@@ -355,6 +438,7 @@ export class PaymentService {
     }
 
     // Update the Payment Status to COMPLETED
+    booking.status = "CONFIRMED";
     booking.paymentStatus = "COMPLETED";
 
     // You may want to add these fields to your Booking model if they don't exist yet

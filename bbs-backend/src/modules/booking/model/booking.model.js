@@ -43,7 +43,8 @@ export default class Booking extends Model {
           type: DataTypes.ENUM(
             "PENDING_CLERK_REVIEW",
             "PENDING_ADMIN_APPROVAL",
-            "PENDING_ADVANCE_PAYMENT",
+            "PENDING_PAYMENT",
+            "ON_HOLD",
             "AWAITING_CASH_PAYMENT",
             "CONFIRMED",
             "CHECKED_IN",
@@ -57,6 +58,19 @@ export default class Booking extends Model {
         },
         actualCheckInTime: {
           type: DataTypes.DATE,
+          allowNull: true,
+        },
+        holdDeadline: {
+          type: DataTypes.DATE,
+          allowNull: true,
+        },
+        holdAmountPaid: {
+          type: DataTypes.DECIMAL(10, 2),
+          allowNull: true,
+          defaultValue: 0.0,
+        },
+        paymentRequested: {
+          type: DataTypes.DECIMAL(10, 2),
           allowNull: true,
         },
         aadharFrontImageUrl: {

@@ -5,6 +5,7 @@ export class InvoiceCalculatorService {
 
     const securityDeposit = parseFloat(booking.securityDeposit || 0);
     const baseAmount = parseFloat(booking.calculatedAmount || 0);
+    const holdAmountPaid = parseFloat(booking.holdAmountPaid || 0);
     const userId = customer.id;
 
     const customerName = isDonation ? dto.customerName : customer.fullName;
@@ -93,6 +94,7 @@ export class InvoiceCalculatorService {
       damagesAndPenalties: dto.damagesAndPenalties,
       totalDeductions,
       securityDepositHeld: securityDeposit,
+      holdAmountPaid,
       finalRefundAmount,
       additionalBalanceDue,
     };

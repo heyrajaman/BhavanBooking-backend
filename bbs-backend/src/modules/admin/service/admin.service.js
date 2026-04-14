@@ -16,21 +16,13 @@ export class AdminService {
     this.notificationService = new NotificationService();
   }
 
-  async approveBooking(
-    bookingId,
-    adminUserId,
-    advanceAmountRequested,
-    revisedTotalAmount,
-  ) {
-    // 1. Fetch the existing booking to get the "previous state"
+  async approveBooking(bookingId, adminUserId, revisedTotalAmount) {
     const existingBooking = await this.bookingService.findById(bookingId);
 
     if (!existingBooking) {
-      // Assuming you have AppError imported, otherwise throw new Error
       throw new Error("Booking not found.");
     }
 
-    // State Machine Check: Ensure it was verified by a clerk first (or is pending)
     if (
       existingBooking.status !== "PENDING_ADMIN_APPROVAL" &&
       existingBooking.status !== "PENDING_CLERK_REVIEW"
@@ -41,21 +33,11 @@ export class AdminService {
       );
     }
 
-    if (!advanceAmountRequested || advanceAmountRequested <= 0) {
-      throw new Error(
-        "An advance payment amount must be specified for approval.",
-      );
-    }
-
     const previousState = existingBooking.toJSON();
-
-    // 2. Start a Database Transaction
     const transaction = await sequelize.transaction();
 
     try {
-      // 3. Update the booking status and set the required advance amount
-      existingBooking.status = "PENDING_ADVANCE_PAYMENT";
-      existingBooking.advanceAmountRequested = advanceAmountRequested;
+      existingBooking.status = "PENDING_PAYMENT";
 
       if (revisedTotalAmount !== undefined && revisedTotalAmount !== null) {
         if (Number(revisedTotalAmount) < 0) {
@@ -66,35 +48,30 @@ export class AdminService {
 
       await existingBooking.save({ transaction });
 
-      // 4. Log the action in the Audit Trail
       await this.auditRepository.logAction(
-        "booking", // entityName
-        bookingId, // entityId
-        "ADMIN_APPROVAL", // action
-        adminUserId, // performedBy
-        previousState, // what it looked like before
-        existingBooking.toJSON(), // what it looks like now
+        "booking",
+        bookingId,
+        "ADMIN_APPROVAL",
+        adminUserId,
+        previousState,
+        existingBooking.toJSON(),
         transaction,
       );
 
-      // 5. Commit the transaction (save everything permanently)
       await transaction.commit();
 
       try {
-        // Fetch the user associated with this booking to get their email
         const user = await existingBooking.getUser();
 
         if (user && user.email) {
-          // Fire and forget (no 'await' so the Admin doesn't have to wait)
           this.notificationService.sendProvisionalHoldEmail(
             user.email,
             user.fullName,
             existingBooking.id,
-            advanceAmountRequested,
+            existingBooking.calculatedAmount,
           );
         }
       } catch (emailError) {
-        // Catch any unexpected errors fetching the user so it doesn't crash the success response
         console.error(
           "Failed to fetch user for email notification:",
           emailError,
@@ -103,7 +80,6 @@ export class AdminService {
 
       return existingBooking;
     } catch (error) {
-      // If anything fails, undo all changes
       await transaction.rollback();
       throw error;
     }

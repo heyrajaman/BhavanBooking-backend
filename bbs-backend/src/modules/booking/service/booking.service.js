@@ -59,39 +59,55 @@ export class BookingService {
   }
 
   async processExpiredPayments() {
-    const cutoffTime = new Date(
+    // 1. Calculate the cutoff for the initial payment (e.g., 24 hours ago)
+    const initialPaymentCutoff = new Date(
       Date.now() - ADVANCE_PAYMENT_DEADLINE_HOURS * 60 * 60 * 1000,
     );
 
-    // Eager-load users in one query to avoid N+1 lookups inside the loop.
-    const expiredBookings =
-      await this.bookingRepository.findExpiredPaymentBookings(cutoffTime);
+    // 2. Fetch both types of expired bookings
+    const expiredInitialBookings =
+      await this.bookingRepository.findExpiredInitialPayments(
+        initialPaymentCutoff,
+      );
+    const expiredHoldBookings =
+      await this.bookingRepository.findExpiredHoldBookings(new Date());
 
-    if (expiredBookings.length === 0) {
-      console.log("🕒 No expired advance payments found.");
+    // Combine them into one array to process
+    const allExpiredBookings = [
+      ...expiredInitialBookings,
+      ...expiredHoldBookings,
+    ];
+
+    if (allExpiredBookings.length === 0) {
+      console.log("🕒 No expired payments or holds found.");
       return;
     }
 
-    // Process cancellations
-    for (const booking of expiredBookings) {
+    // 3. Process cancellations
+    for (const booking of allExpiredBookings) {
       try {
         const previousStatus = booking.status;
 
         booking.status = "CANCELLED";
         booking.cancelledAt = new Date();
-        booking.cancellationReason =
-          previousStatus === "AWAITING_CASH_PAYMENT"
-            ? `Auto-cancelled: Cash payment not marked within ${ADVANCE_PAYMENT_DEADLINE_HOURS} hours.`
-            : `Auto-cancelled: Online advance payment not received within ${ADVANCE_PAYMENT_DEADLINE_HOURS} hours.`;
+
+        // Differentiate the reason based on what expired
+        if (previousStatus === "PENDING_PAYMENT") {
+          booking.cancellationReason = `Auto-cancelled: Initial payment not received within ${ADVANCE_PAYMENT_DEADLINE_HOURS} hours.`;
+        } else if (previousStatus === "ON_HOLD") {
+          // Format the deadline nicely for the reason string
+          const deadlineStr = booking.holdDeadline
+            ? booking.holdDeadline.toISOString().split("T")
+            : "the deadline";
+          booking.cancellationReason = `Auto-cancelled: Remaining 80% payment not received by ${deadlineStr}. 20% hold amount forfeited.`;
+        }
 
         await booking.save();
 
-        // Optional: Notify user
         const user = booking.user;
         if (user && user.email) {
-          // You can add a dedicated email template for this later
           console.log(
-            `Auto-cancelled booking ${booking.id} for user ${user.email}`,
+            `Auto-cancelled booking ${booking.id} for user ${user.email} (Reason: ${previousStatus})`,
           );
         }
       } catch (err) {
@@ -99,7 +115,7 @@ export class BookingService {
       }
     }
 
-    console.log(`🕒 Processed ${expiredBookings.length} expired bookings.`);
+    console.log(`🕒 Processed ${allExpiredBookings.length} expired bookings.`);
   }
 
   async uploadAadhaarImages(
@@ -387,8 +403,6 @@ export class BookingService {
   async generateReport(dto) {
     const { fromDate, toDate } = dto;
 
-    // Ensure the 'toDate' covers the entire day (up to 23:59:59)
-    // so we don't miss bookings made on the last day.
     const endOfDay = new Date(toDate);
     endOfDay.setUTCHours(23, 59, 59, 999);
 
@@ -418,22 +432,49 @@ export class BookingService {
       if (booking.invoice && booking.invoice.approvalStatus === "APPROVED") {
         return sum + parseFloat(booking.invoice.totalAmount || 0);
       }
-      const advancePaid = parseFloat(booking.advanceAmountRequested || 0);
-      const remainingPaid = parseFloat(booking.remainingAmountPaid || 0);
+
+      let revenueIn = 0;
+
+      if (
+        booking.paymentStatus === "COMPLETED" ||
+        booking.status === "CONFIRMED" ||
+        booking.status === "CHECKED_IN"
+      ) {
+        revenueIn =
+          parseFloat(booking.calculatedAmount || 0) +
+          parseFloat(booking.securityDeposit || 0);
+      } else if (booking.status === "ON_HOLD") {
+        revenueIn = parseFloat(booking.holdAmountPaid || 0);
+      }
+
       const refunded = parseFloat(booking.refundAmount || 0);
 
-      return sum + (advancePaid + remainingPaid - refunded);
+      return sum + (revenueIn - refunded);
     }, 0);
 
     // 3. Format the response data to match the exact requirements
-    const formattedBookings = bookings.map((booking) => ({
-      bookingId: booking.id,
-      bookingDate: booking.createdAt,
-      paymentAmount: booking.invoice
-        ? parseFloat(booking.invoice.totalAmount || 0)
-        : parseFloat(booking.calculatedAmount || 0),
-      status: booking.status,
-    }));
+    const formattedBookings = bookings.map((booking) => {
+      let currentPayment = 0;
+      if (booking.invoice) {
+        currentPayment = parseFloat(booking.invoice.totalAmount || 0);
+      } else if (
+        booking.paymentStatus === "COMPLETED" ||
+        booking.status === "CONFIRMED"
+      ) {
+        currentPayment =
+          parseFloat(booking.calculatedAmount || 0) +
+          parseFloat(booking.securityDeposit || 0);
+      } else if (booking.status === "ON_HOLD") {
+        currentPayment = parseFloat(booking.holdAmountPaid || 0);
+      }
+
+      return {
+        bookingId: booking.id,
+        bookingDate: booking.createdAt,
+        paymentAmount: currentPayment,
+        status: booking.status,
+      };
+    });
 
     return {
       summary: {

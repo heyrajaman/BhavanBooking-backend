@@ -27,25 +27,23 @@ export class PaymentController {
   };
 
   /**
-   * Handles the request to create a Razorpay order for the advance payment
+   * Handles the request to create a Razorpay order for the initial payment (Hold/Full)
    */
-  createAdvanceOrder = async (req, res, next) => {
-    // req.user is set by your protect middleware
+  createInitialOrder = async (req, res, next) => {
     const userId = req.user.id;
-    const { bookingId, paymentMode } = req.body;
+    // paymentOption should be sent from frontend: "HOLD" or "FULL"
+    const { bookingId, paymentOption, paymentMode } = req.body;
 
-    const orderDetails = await this.paymentService.createAdvancePaymentOrder(
+    const orderDetails = await this.paymentService.createInitialPaymentOrder(
       userId,
       bookingId,
+      paymentOption,
       paymentMode,
     );
 
     return res.status(200).json({
       success: true,
-      message:
-        paymentMode === "CASH"
-          ? "Cash payment initiated successfully."
-          : "Razorpay advance order created successfully",
+      message: "Razorpay order created successfully",
       data: orderDetails,
     });
   };
@@ -53,20 +51,24 @@ export class PaymentController {
   /**
    * Handles the request from the frontend to verify the payment signature
    */
-  verifyAdvance = async (req, res, next) => {
+  verifyInitialPayment = async (req, res, next) => {
     const userId = req.user.id;
-    const paymentData = req.body;
+    const paymentData = req.body; // should include paymentOption: "HOLD" or "FULL"
 
-    const confirmedBooking = await this.paymentService.verifyAdvancePayment(
+    const updatedBooking = await this.paymentService.verifyInitialPayment(
       userId,
       paymentData,
     );
 
+    const msg =
+      paymentData.paymentOption === "HOLD"
+        ? "Hold payment verified successfully. Booking is now ON HOLD."
+        : "Full payment verified successfully. Booking is now CONFIRMED!";
+
     return res.status(200).json({
       success: true,
-      message:
-        "Advance payment verified successfully. Booking is now CONFIRMED!",
-      data: confirmedBooking,
+      message: msg,
+      data: updatedBooking,
     });
   };
 

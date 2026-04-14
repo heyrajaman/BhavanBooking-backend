@@ -3,7 +3,12 @@ import { Router } from "express";
 import { PaymentController } from "../controller/payment.controller.js";
 import { catchAsync } from "../../../utils/catchAsync.js";
 import { protect, restrictTo } from "../../../middlewares/auth.middleware.js";
-import { OfflineAdvanceDto, OfflineRemainingDto } from "../dto/payment.dto.js";
+import {
+  OfflineAdvanceDto,
+  OfflineRemainingDto,
+  CreateInitialOrderDto,
+  VerifyPaymentDto,
+} from "../dto/payment.dto.js";
 import { validateDto } from "../../../middlewares/validate.js";
 import { paymentOrderLimiter } from "../../../middlewares/rateLimit.middleware.js";
 
@@ -29,17 +34,22 @@ router.post(
 // All payment routes require the user to be logged in and have the "USER" role
 router.use(protect, restrictTo("USER"));
 
-// --- ADVANCE PAYMENT ROUTES ---
+// --- INITIAL PAYMENT ROUTES (Replaces Advance) ---
 
-// 1. Create Razorpay order for the Advance Amount
+// 1. Create Razorpay order for the Initial Amount (HOLD or FULL)
 router.post(
-  "/advance/create-order",
+  "/initial/create-order",
   paymentOrderLimiter,
-  catchAsync(paymentController.createAdvanceOrder),
+  validateDto(CreateInitialOrderDto),
+  catchAsync(paymentController.createInitialOrder),
 );
 
-// 2. Verify the Advance Payment
-router.post("/advance/verify", catchAsync(paymentController.verifyAdvance));
+// 2. Verify the Initial Payment
+router.post(
+  "/initial/verify",
+  validateDto(VerifyPaymentDto),
+  catchAsync(paymentController.verifyInitialPayment),
+);
 
 // 3. Create Razorpay order for the Remaining Amount
 router.post(
