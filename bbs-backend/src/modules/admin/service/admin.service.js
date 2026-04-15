@@ -16,7 +16,12 @@ export class AdminService {
     this.notificationService = new NotificationService();
   }
 
-  async approveBooking(bookingId, adminUserId, revisedTotalAmount) {
+  async approveBooking(
+    bookingId,
+    adminUserId,
+    revisedTotalAmount,
+    overrideSecurityDeposit,
+  ) {
     const existingBooking = await this.bookingService.findById(bookingId);
 
     if (!existingBooking) {
@@ -44,6 +49,19 @@ export class AdminService {
           throw new AppError("Revised total amount cannot be negative.", 400);
         }
         existingBooking.calculatedAmount = revisedTotalAmount;
+      }
+
+      if (
+        overrideSecurityDeposit !== undefined &&
+        overrideSecurityDeposit !== null
+      ) {
+        if (Number(overrideSecurityDeposit) < 0) {
+          throw new AppError(
+            "Security deposit override cannot be negative.",
+            400,
+          );
+        }
+        existingBooking.securityDeposit = overrideSecurityDeposit;
       }
 
       await existingBooking.save({ transaction });

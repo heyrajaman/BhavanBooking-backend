@@ -40,12 +40,13 @@ export class AdminController {
       const { bookingId } = req.params;
       const adminUserId = req.user.id;
 
-      const { revisedTotalAmount } = req.body;
+      const { revisedTotalAmount, overrideSecurityDeposit } = req.body;
 
       const updatedBooking = await this.adminService.approveBooking(
         bookingId,
         adminUserId,
         revisedTotalAmount,
+        overrideSecurityDeposit,
       );
 
       try {
@@ -67,6 +68,7 @@ export class AdminController {
         data: {
           status: updatedBooking.status,
           calculatedAmount: updatedBooking.calculatedAmount,
+          securityDeposit: updatedBooking.securityDeposit,
         },
       });
     } catch (error) {

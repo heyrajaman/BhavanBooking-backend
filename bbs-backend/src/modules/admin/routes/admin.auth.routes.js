@@ -8,6 +8,7 @@ import { catchAsync } from "../../../utils/catchAsync.js";
 import { protect, restrictTo } from "../../../middlewares/auth.middleware.js";
 import { uploadImage } from "../../../middlewares/upload.middleware.js";
 import { strictAuthLimiter } from "../../../middlewares/rateLimit.middleware.js";
+import { ApproveBookingDto } from "../dto/admin.request.dto.js";
 
 const router = Router();
 const adminAuthController = new AdminAuthController();
@@ -77,7 +78,8 @@ router.patch(
 router.patch(
   "/bookings/:bookingId/approve",
   protect,
-  restrictTo("ADMIN"), // Only logged-in Admins can perform this action
+  restrictTo("ADMIN"),
+  validateDto(ApproveBookingDto),
   catchAsync(adminController.approveBooking),
 );
 
