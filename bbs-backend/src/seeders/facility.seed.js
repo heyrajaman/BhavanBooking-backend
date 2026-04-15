@@ -94,6 +94,7 @@ const facilityData = [
     facilityType: "ROOM",
     pricingType: "FIXED",
     baseRate: 2500.0,
+    inventoryCount: 10,
     pricingDetails: { is_atomic: true },
     securityDeposit: 0.0,
     imageFiles: ["four_bedroom_1.jpeg", "four_bedroom_2.jpeg"],
@@ -104,6 +105,7 @@ const facilityData = [
     facilityType: "ROOM",
     pricingType: "FIXED",
     baseRate: 1800.0,
+    inventoryCount: 2,
     pricingDetails: { is_atomic: true },
     securityDeposit: 0.0,
     imageFiles: ["double_bedroom_1.jpeg"],
@@ -123,7 +125,8 @@ const facilityData = [
     description: "Single dormitory accommodating up to 15 persons.",
     facilityType: "ROOM",
     pricingType: "FIXED",
-    baseRate: 8000.0,
+    baseRate: 10000.0,
+    inventoryCount: 3,
     pricingDetails: { is_atomic: true },
     securityDeposit: 0.0,
     imageFiles: ["four_bedroom_1.jpeg", "four_bedroom_2.jpeg"],
@@ -134,7 +137,8 @@ const facilityData = [
   // ==========================================
   {
     name: "Complete Maharashtra Bhavan",
-    description: "Hall, Dining Hall, Stage, Kitchen, Lawn, 12-rooms",
+    description:
+      "Hall, Dining Hall, Stage, Kitchen, Lawn, 12-rooms, 3-Dormitory",
     facilityType: "COMPLEX",
     pricingType: "TIERED",
     baseRate: 130000.0,
@@ -143,15 +147,16 @@ const facilityData = [
       "2_days": 230000,
       "3_days": 310000,
       included_facilities: [
-        "Big Hall",
-        "Dining Hall",
-        "Stage",
-        "Kitchen",
-        "Lawn",
-        "Parking",
-        "Standard Room",
-        "Day Room (4 Bedded)",
-        "Day Room (Double Bed)",
+        { name: "Big Hall", quantity: 1 },
+        { name: "Dining Hall", quantity: 1 },
+        { name: "Stage", quantity: 1 },
+        { name: "Green Room", quantity: 2 },
+        { name: "Kitchen", quantity: 1 },
+        { name: "Lawn", quantity: 1 },
+        { name: "Parking", quantity: 1 },
+        { name: "Day Room (4 Bedded)", quantity: 10 },
+        { name: "Day Room (Double Bed)", quantity: 2 },
+        { name: "Dormitory (15 persons)", quantity: 3 },
       ],
     },
     securityDeposit: 25000.0,
@@ -174,12 +179,12 @@ const facilityData = [
     baseRate: 60000.0,
     pricingDetails: {
       included_facilities: [
-        "Big Hall",
-        "Stage",
-        "Standard Room",
-        "Dining Hall",
-        "Kitchen",
-        "Parking",
+        { name: "Big Hall", quantity: 1 },
+        { name: "Stage", quantity: 1 },
+        { name: "Green Room", quantity: 2 },
+        { name: "Dining Hall", quantity: 1 },
+        { name: "Kitchen", quantity: 1 },
+        { name: "Parking", quantity: 1 },
       ],
     },
     securityDeposit: 25000.0,
@@ -200,7 +205,11 @@ const facilityData = [
     pricingDetails: {
       slotType: "FLEXIBLE",
       durationHours: 6,
-      included_facilities: ["Big Hall", "Stage", "Standard Room"],
+      included_facilities: [
+        { name: "Big Hall", quantity: 1 },
+        { name: "Stage", quantity: 1 },
+        { name: "Green Room", quantity: 2 },
+      ],
     },
     securityDeposit: 25000.0,
     imageFiles: [
@@ -221,7 +230,11 @@ const facilityData = [
     baseRate: 25000.0,
     pricingDetails: {
       slotType: "FIXED", // Tells the frontend/backend how to behave
-      included_facilities: ["Dining Hall", "Kitchen", "Parking"],
+      included_facilities: [
+        { name: "Dining Hall", quantity: 1 },
+        { name: "Kitchen", quantity: 1 },
+        { name: "Parking", quantity: 1 },
+      ],
       slots: [
         {
           id: "morning",
@@ -256,7 +269,11 @@ const facilityData = [
     pricingType: "FIXED",
     baseRate: 40000.0,
     pricingDetails: {
-      included_facilities: ["Lawn", "Kitchen", "Parking"],
+      included_facilities: [
+        { name: "Lawn", quantity: 1 },
+        { name: "Kitchen", quantity: 1 },
+        { name: "Parking", quantity: 1 },
+      ],
     },
     securityDeposit: 25000.0,
     imageFiles: ["lawn_image_1.jpeg"],
@@ -268,7 +285,7 @@ const facilityData = [
     pricingType: "FIXED",
     baseRate: 18000.0,
     pricingDetails: {
-      included_facilities: ["Dormitory (15 persons)"],
+      included_facilities: [{ name: "Dormitory (15 persons)", quantity: 2 }],
     },
     securityDeposit: 0.0,
     imageFiles: ["four_bedroom_1.jpeg", "four_bedroom_2.jpeg"],

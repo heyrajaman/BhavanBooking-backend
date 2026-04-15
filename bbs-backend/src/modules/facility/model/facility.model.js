@@ -67,6 +67,11 @@ export default class Facility extends Model {
           type: DataTypes.INTEGER,
           allowNull: true,
         },
+        inventoryCount: {
+          type: DataTypes.INTEGER,
+          allowNull: false,
+          defaultValue: 1,
+        },
         isActive: {
           type: DataTypes.BOOLEAN,
           defaultValue: true,

@@ -19,7 +19,7 @@ export class BookingPricingService {
 
     let totalSecurityDeposit = durationInDays <= 1 ? 25000 : 50000;
 
-    const unavailableFacilities = await this.getUnavailableFacilitiesSet(
+    const bookedQuantities = await this.getBookedQuantities(
       bookingData.startTime,
       bookingData.endTime,
     );
@@ -38,17 +38,17 @@ export class BookingPricingService {
 
         validateFacilitySlots(fac, bookingData.startTime, bookingData.endTime);
 
-        if (
-          unavailableFacilities.has(fac.name) &&
-          fac.facilityType !== "ROOM"
-        ) {
+        const requestedQty = item.quantity || 1;
+        const totalInventory = fac.inventoryCount || 1;
+        const alreadyBooked = bookedQuantities[fac.name] || 0;
+
+        if (alreadyBooked + requestedQty > totalInventory) {
           throw new AppError(
-            `${fac.name} is already booked for these dates.`,
+            `Cannot book ${requestedQty} of ${fac.name}. Only ${Math.max(0, totalInventory - alreadyBooked)} remaining for these dates.`,
             409,
           );
         }
 
-        const quantity = item.quantity || 1;
         const itemUnitAmount =
           fac.pricingType === "PER_ITEM"
             ? Number(fac.baseRate)
@@ -57,14 +57,14 @@ export class BookingPricingService {
                 bookingData.startTime,
                 bookingData.endTime,
               );
-        const itemTotal = itemUnitAmount * quantity;
 
+        const itemTotal = itemUnitAmount * requestedQty;
         totalAmount += itemTotal;
 
         customDetails.push({
           facilityId: fac.id,
           name: fac.name,
-          quantity,
+          quantity: requestedQty,
           price: itemTotal,
         });
       }
@@ -80,15 +80,27 @@ export class BookingPricingService {
         bookingData.endTime,
       );
 
-      if (unavailableFacilities.has(facility.name)) {
+      const totalInventory = facility.inventoryCount || 1;
+      const alreadyBooked = bookedQuantities[facility.name] || 0;
+
+      if (alreadyBooked + 1 > totalInventory) {
         throw new AppError("This package is unavailable for these dates.", 409);
       }
 
       if (facility.pricingDetails?.included_facilities) {
+        const allFacilities = await this.facilityService.findAll();
+
         for (const inc of facility.pricingDetails.included_facilities) {
-          if (unavailableFacilities.has(inc)) {
+          const incName = inc.name || inc;
+          const incQty = inc.quantity ? parseInt(inc.quantity, 10) : 1;
+
+          const subFac = allFacilities.find((f) => f.name === incName);
+          const subInventory = subFac ? subFac.inventoryCount || 1 : 1;
+          const subAlreadyBooked = bookedQuantities[incName] || 0;
+
+          if (subAlreadyBooked + incQty > subInventory) {
             throw new AppError(
-              `Cannot book this package. Component '${inc}' is already booked by someone else.`,
+              `Cannot book this package. Component '${incName}' does not have enough inventory remaining. (Needs ${incQty}, but only ${Math.max(0, subInventory - subAlreadyBooked)} left)`,
               409,
             );
           }
@@ -105,31 +117,37 @@ export class BookingPricingService {
     return { totalAmount, totalSecurityDeposit, mainFacilityId, customDetails };
   }
 
-  async getUnavailableFacilitiesSet(startTime, endTime) {
+  async getBookedQuantities(startTime, endTime) {
     const overlaps = await this.bookingRepository.findOverlappingBookings(
       startTime,
       endTime,
     );
-    const unavailableFacilities = new Set();
+    const bookedQuantities = {};
 
     overlaps.forEach((booking) => {
-      if (booking.customDetails) {
-        booking.customDetails.forEach((item) =>
-          unavailableFacilities.add(item.name),
-        );
+      if (booking.customDetails && Array.isArray(booking.customDetails)) {
+        booking.customDetails.forEach((item) => {
+          const qty = item.quantity ? parseInt(item.quantity, 10) : 1;
+          bookedQuantities[item.name] =
+            (bookedQuantities[item.name] || 0) + qty;
+        });
       }
 
       if (booking.facility) {
-        unavailableFacilities.add(booking.facility.name);
+        bookedQuantities[booking.facility.name] =
+          (bookedQuantities[booking.facility.name] || 0) + 1;
         if (booking.facility.pricingDetails?.included_facilities) {
-          booking.facility.pricingDetails.included_facilities.forEach((inc) =>
-            unavailableFacilities.add(inc),
-          );
+          booking.facility.pricingDetails.included_facilities.forEach((inc) => {
+            const incName = inc.name || inc;
+            const incQty = inc.quantity ? parseInt(inc.quantity, 10) : 1;
+            bookedQuantities[incName] =
+              (bookedQuantities[incName] || 0) + incQty;
+          });
         }
       }
     });
 
-    return unavailableFacilities;
+    return bookedQuantities;
   }
 
   calculatePrice(facility, startTime, endTime) {

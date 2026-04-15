@@ -25,9 +25,10 @@ export class BookingAvailabilityService {
 
         const targetInclusions =
           targetFacility.pricingDetails?.included_facilities || [];
-        const blocksPackage = targetInclusions.some((inc) =>
-          booking.customDetails.some((item) => item.name === inc),
-        );
+        const blocksPackage = targetInclusions.some((inc) => {
+          const incName = inc.name || inc;
+          return booking.customDetails.some((item) => item.name === incName);
+        });
 
         if (
           (hasTarget || blocksPackage) &&
@@ -42,14 +43,18 @@ export class BookingAvailabilityService {
 
         const bookedInclusions =
           booking.facility.pricingDetails?.included_facilities || [];
-        if (bookedInclusions.includes(targetFacility.name)) isConflict = true;
+        const bookedNames = bookedInclusions.map((inc) => inc.name || inc);
+
+        if (bookedNames.includes(targetFacility.name)) isConflict = true;
 
         const targetInclusions =
           targetFacility.pricingDetails?.included_facilities || [];
-        if (targetInclusions.includes(booking.facility.name)) isConflict = true;
+        const targetNames = targetInclusions.map((inc) => inc.name || inc);
 
-        const sharedComponents = targetInclusions.filter((inc) =>
-          bookedInclusions.includes(inc),
+        if (targetNames.includes(booking.facility.name)) isConflict = true;
+
+        const sharedComponents = targetNames.filter((incName) =>
+          bookedNames.includes(incName),
         );
         if (sharedComponents.length > 0) isConflict = true;
 

@@ -143,57 +143,81 @@ export class FacilityService {
     // Convert Sequelize models to standard JSON objects so we can add new properties
     const facilities = facilitiesDb.map((f) => (f.toJSON ? f.toJSON() : f));
 
-    // 2. If dates are provided, filter availability!
+    // 2. If dates are provided, filter availability dynamically!
     if (hasDateRange) {
       const overlaps = await this.bookingService.findOverlappingBookings(
         startDate,
         endDate,
       );
-      let unavailableNames = new Set();
 
-      // Build a set of everything that is booked (Main packages + Custom Items + Sub-components)
+      let bookedQuantities = {};
+
       overlaps.forEach((booking) => {
-        if (booking.customDetails) {
-          booking.customDetails.forEach((item) =>
-            unavailableNames.add(item.name),
-          );
+        if (booking.customDetails && Array.isArray(booking.customDetails)) {
+          booking.customDetails.forEach((item) => {
+            const qty = item.quantity ? parseInt(item.quantity, 10) : 1;
+            bookedQuantities[item.name] =
+              (bookedQuantities[item.name] || 0) + qty;
+          });
         }
+
         if (booking.facility) {
-          unavailableNames.add(booking.facility.name);
+          bookedQuantities[booking.facility.name] =
+            (bookedQuantities[booking.facility.name] || 0) + 1;
+
           if (booking.facility.pricingDetails?.included_facilities) {
-            booking.facility.pricingDetails.included_facilities.forEach((inc) =>
-              unavailableNames.add(inc),
+            booking.facility.pricingDetails.included_facilities.forEach(
+              (inc) => {
+                const incName = inc.name || inc;
+                const incQty = inc.quantity ? parseInt(inc.quantity, 10) : 1;
+
+                bookedQuantities[incName] =
+                  (bookedQuantities[incName] || 0) + incQty;
+              },
             );
           }
         }
       });
 
-      // Mark each facility as available or not
       facilities.forEach((fac) => {
+        const totalInventory = fac.inventoryCount || 1;
+        const currentlyBooked = bookedQuantities[fac.name] || 0;
+        fac.remainingQuantity = Math.max(0, totalInventory - currentlyBooked);
+
         fac.isAvailableForDates = true;
 
-        // Condition A: The facility itself is directly booked
-        if (unavailableNames.has(fac.name)) {
-          // Allow multiple rooms to still show, but block Halls/Lawns/Packages
-          if (fac.facilityType !== "ROOM") {
-            fac.isAvailableForDates = false;
-          }
+        if (fac.remainingQuantity <= 0) {
+          fac.isAvailableForDates = false;
         }
 
-        // Condition B: It's a Package, and one of its sub-items (like Kitchen) is booked
-        if (fac.pricingDetails?.included_facilities) {
-          const hasBlockedInclusion =
-            fac.pricingDetails.included_facilities.some((inc) =>
-              unavailableNames.has(inc),
-            );
-          if (hasBlockedInclusion) {
+        if (
+          fac.isAvailableForDates &&
+          fac.pricingDetails?.included_facilities
+        ) {
+          const cannotFulfillPackage =
+            fac.pricingDetails.included_facilities.some((inc) => {
+              const reqName = inc.name || inc;
+              const reqQty = inc.quantity ? parseInt(inc.quantity, 10) : 1;
+
+              const subFac = facilities.find((f) => f.name === reqName);
+              const subFacTotal = subFac ? subFac.inventoryCount || 1 : 1;
+              const subFacBooked = bookedQuantities[reqName] || 0;
+              const subFacRemaining = Math.max(0, subFacTotal - subFacBooked);
+
+              return subFacRemaining < reqQty;
+            });
+
+          if (cannotFulfillPackage) {
             fac.isAvailableForDates = false;
+            fac.remainingQuantity = 0;
           }
         }
       });
     } else {
-      // If no dates searched, everything defaults to available for UI purposes
-      facilities.forEach((fac) => (fac.isAvailableForDates = true));
+      facilities.forEach((fac) => {
+        fac.isAvailableForDates = true;
+        fac.remainingQuantity = fac.inventoryCount || 1;
+      });
     }
 
     if (availabilityCacheKey) {

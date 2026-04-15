@@ -189,40 +189,40 @@ export class BookingService {
 
   async checkAvailabilityAndPrice(bookingData) {
     try {
-      // 1. Check if they are trying to book a standard Package
       if (bookingData.facilityId) {
         const facility = await this.facilityService.findById(
           bookingData.facilityId,
         );
         if (!facility) throw new AppError("Facility not found.", 404);
 
-        const unavailableFacilities =
-          await this.bookingPricingService.getUnavailableFacilitiesSet(
+        const bookedQuantities =
+          await this.bookingPricingService.getBookedQuantities(
             bookingData.startTime,
             bookingData.endTime,
           );
 
-        // Fetch overlaps to see what is taken
-        const overlaps = await this.bookingRepository.findOverlappingBookings(
-          bookingData.startTime,
-          bookingData.endTime,
-        );
-
-        // 2. Check if the package is entirely blocked or partially blocked
         const packageInclusions =
           facility.pricingDetails?.included_facilities || [];
         let takenComponents = [];
         let availableComponents = [];
 
-        packageInclusions.forEach((inc) => {
-          if (unavailableFacilities.has(inc)) {
-            takenComponents.push(inc);
-          } else {
-            availableComponents.push(inc);
-          }
-        });
+        const allFacilities = await this.facilityService.findAll();
 
-        // 3. If there are conflicts inside the package, return the PARTIAL availability response!
+        for (const inc of packageInclusions) {
+          const incName = inc.name || inc;
+          const incQty = inc.quantity ? parseInt(inc.quantity, 10) : 1;
+
+          const subFac = allFacilities.find((f) => f.name === incName);
+          const subInventory = subFac ? subFac.inventoryCount || 1 : 1;
+          const subAlreadyBooked = bookedQuantities[incName] || 0;
+
+          if (subAlreadyBooked + incQty > subInventory) {
+            takenComponents.push(incName);
+          } else {
+            availableComponents.push(incName);
+          }
+        }
+
         if (takenComponents.length > 0) {
           if (availableComponents.length === 0) {
             return {
@@ -231,19 +231,14 @@ export class BookingService {
               message: `This package is completely booked for these dates. (${takenComponents.join(", ")} are all taken)`,
             };
           }
-          // Fetch the database IDs of the remaining available items so the frontend can easily book them
-          const availableFacilitiesDb = await this.facilityService.findAll({
-            name: takenComponents.length > 0 ? availableComponents : [],
-          });
 
-          // Filter our DB results to match only the available names
-          const availableToBook = availableFacilitiesDb
+          const availableToBook = allFacilities
             .filter((f) => availableComponents.includes(f.name))
             .map((f) => ({
               facilityId: f.id,
               name: f.name,
               baseRate: f.baseRate,
-              quantity: 1, // Default quantity to 1
+              quantity: 1,
             }));
 
           return {
@@ -256,7 +251,6 @@ export class BookingService {
         }
       }
 
-      // 4. If everything is fully available (or it's a Custom booking check), proceed as normal
       const { totalAmount, totalSecurityDeposit } =
         await this.bookingPricingService.processAndValidateBookingItems(
           bookingData,
