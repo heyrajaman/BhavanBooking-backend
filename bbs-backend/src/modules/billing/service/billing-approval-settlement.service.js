@@ -13,17 +13,56 @@ export class BillingApprovalSettlementService {
         invoice.adminRemarks = approvalMessage;
         invoice.paymentStatus = "REFUNDED";
       } else {
-        if (!booking.razorpayPaymentId) {
+        const paymentIds = booking.razorpayPaymentIds || [];
+
+        if (paymentIds.length === 0) {
           invoice.adminRemarks =
             "Approved successfully. Manual refund required (No Payment ID found).";
         } else {
           try {
-            const refundResponse = await this.paymentService.processRefund(
-              booking.razorpayPaymentId,
-              invoice.finalRefundAmount,
-            );
-            refundDetails = refundResponse.id;
-            approvalMessage += ` Automatic online refund initiated (Refund ID: ${refundDetails}).`;
+            let remainingRefundRequired = invoice.finalRefundAmount;
+            const processedRefundIds = [];
+
+            for (const pId of paymentIds) {
+              if (remainingRefundRequired <= 0) break;
+
+              if (pId.startsWith("pay_test_")) {
+                console.log(`🧪 Mocking Razorpay refund for test ID: ${pId}`);
+                processedRefundIds.push("mock_refund_id");
+                remainingRefundRequired -= remainingRefundRequired;
+                continue;
+              }
+
+              const payment =
+                await this.paymentService.razorpayInstance.payments.fetch(pId);
+              const availableToRefundInRupees =
+                (payment.amount - payment.amount_refunded) / 100;
+
+              if (availableToRefundInRupees <= 0) continue;
+
+              const amountToRefundFromThisTxn = Math.min(
+                remainingRefundRequired,
+                availableToRefundInRupees,
+              );
+
+              const refundResponse =
+                await this.paymentService.razorpayInstance.payments.refund(
+                  pId,
+                  {
+                    amount: Math.round(amountToRefundFromThisTxn * 100),
+                    notes: {
+                      invoiceId: invoice.id,
+                      reason: "Security Deposit Settlement",
+                    },
+                  },
+                );
+
+              processedRefundIds.push(refundResponse.id);
+              remainingRefundRequired -= amountToRefundFromThisTxn;
+            }
+
+            refundDetails = processedRefundIds.join(", ");
+            approvalMessage += ` Automatic online refund initiated (Refund IDs: ${refundDetails}).`;
             invoice.adminRemarks = approvalMessage;
             invoice.paymentStatus = "REFUNDED";
           } catch (error) {

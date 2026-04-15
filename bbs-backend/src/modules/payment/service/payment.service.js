@@ -10,13 +10,15 @@ export class PaymentService {
   constructor() {
     this.bookingService = new BookingAccessService();
     this.notificationService = new NotificationService();
+    this.razorpayInstance = razorpayInstance;
   }
 
   /**
    * STAFF: Verifies and logs an offline advance payment (Cash/QR)
    */
   async verifyOfflineAdvancePayment(clerkId, paymentData) {
-    const { bookingId, paymentMode, amountCollected } = paymentData;
+    const { bookingId, paymentMode, amountCollected, paymentOption } =
+      paymentData;
 
     const booking = await this.bookingService.findById(bookingId);
     if (!booking) throw new AppError("Booking not found", 404);
@@ -114,7 +116,12 @@ export class PaymentService {
   /**
    * 1. Creates a Razorpay order for the Initial Payment (Hold or Full)
    */
-  async createInitialPaymentOrder(userId, bookingId, paymentOption = "FULL") {
+  async createInitialPaymentOrder(
+    userId,
+    bookingId,
+    paymentOption = "FULL",
+    paymentMode = "ONLINE",
+  ) {
     const booking = await this.bookingService.findById(bookingId);
     if (!booking) throw new AppError("Booking not found", 404);
 
@@ -218,10 +225,8 @@ export class PaymentService {
       razorpay_payment_id,
       razorpay_signature,
       bookingId,
-      paymentOption, // Must be passed from frontend to know what they paid for
     } = paymentData;
 
-    // Verify the Razorpay Signature
     const body = razorpay_order_id + "|" + razorpay_payment_id;
     const expectedSignature = crypto
       .createHmac("sha256", process.env.RAZORPAY_KEY_SECRET)
@@ -240,29 +245,33 @@ export class PaymentService {
       throw new AppError("Booking not found or unauthorized.", 404);
     }
 
+    const orderDetails = await razorpayInstance.orders.fetch(razorpay_order_id);
+    const amountPaidInRupees = orderDetails.amount / 100;
+
     const totalCost =
       Number(booking.calculatedAmount) + Number(booking.securityDeposit);
+
+    const paymentOption =
+      amountPaidInRupees < totalCost * 0.5 ? "HOLD" : "FULL";
 
     if (paymentOption === "HOLD") {
       booking.status = "ON_HOLD";
       booking.paymentStatus = "PARTIAL";
-      booking.holdAmountPaid = totalCost * 0.2;
+      booking.holdAmountPaid = amountPaidInRupees;
 
-      // Calculate Deadline based on start date distance
       const msInMonth = 1000 * 60 * 60 * 24 * 30;
       const monthsAway = (new Date(booking.startTime) - new Date()) / msInMonth;
 
       const deadline = new Date();
       if (monthsAway > 3) {
-        deadline.setDate(deadline.getDate() + 30); // 1 month deadline
+        deadline.setDate(deadline.getDate() + 30);
       } else {
-        deadline.setDate(deadline.getDate() + 7); // 1 week deadline
+        deadline.setDate(deadline.getDate() + 7);
       }
       booking.holdDeadline = deadline;
     } else {
-      // Option 2: Full payment
       booking.status = "CONFIRMED";
-      booking.paymentStatus = "COMPLETED"; // Fully paid upfront
+      booking.paymentStatus = "COMPLETED";
     }
 
     const existingIds = booking.razorpayPaymentIds || [];
@@ -409,7 +418,7 @@ export class PaymentService {
   async verifyOfflineRemainingPayment(clerkId, paymentData) {
     const { bookingId, paymentMode, amountCollected } = paymentData;
 
-    const booking = await this.bookingRepository.findById(bookingId);
+    const booking = await this.bookingService.findById(bookingId);
     if (!booking) throw new AppError("Booking not found", 404);
 
     if (booking.status !== "ON_HOLD" || booking.paymentStatus !== "PARTIAL") {

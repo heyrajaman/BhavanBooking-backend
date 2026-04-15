@@ -53,7 +53,7 @@ export class PaymentController {
    */
   verifyInitialPayment = async (req, res, next) => {
     const userId = req.user.id;
-    const paymentData = req.body; // should include paymentOption: "HOLD" or "FULL"
+    const paymentData = req.body;
 
     const updatedBooking = await this.paymentService.verifyInitialPayment(
       userId,
@@ -61,7 +61,7 @@ export class PaymentController {
     );
 
     const msg =
-      paymentData.paymentOption === "HOLD"
+      updatedBooking.status === "ON_HOLD"
         ? "Hold payment verified successfully. Booking is now ON HOLD."
         : "Full payment verified successfully. Booking is now CONFIRMED!";
 

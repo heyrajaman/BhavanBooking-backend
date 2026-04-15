@@ -27,10 +27,6 @@ export const VerifyPaymentDto = Joi.object({
     "string.guid": "Booking ID must be a valid UUID.",
     "any.required": "Booking ID is required.",
   }),
-  paymentOption: Joi.string().valid("HOLD", "FULL").required().messages({
-    "any.only": "Payment option must be either HOLD or FULL.",
-    "any.required": "Payment option is required.",
-  }),
 }).options({ stripUnknown: true });
 
 export const OfflineAdvanceDto = Joi.object({
