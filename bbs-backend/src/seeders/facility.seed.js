@@ -89,7 +89,7 @@ const facilityData = [
     imageFiles: ["lawn_image_1.jpeg"],
   },
   {
-    name: "Day Room (4 Bedded)",
+    name: "Family Room (4 Bedded)",
     description: "10:00 AM – Next Day 8:00 AM. 4 Bedded room.",
     facilityType: "ROOM",
     pricingType: "FIXED",
@@ -100,7 +100,7 @@ const facilityData = [
     imageFiles: ["four_bedroom_1.jpeg", "four_bedroom_2.jpeg"],
   },
   {
-    name: "Day Room (Double Bed)",
+    name: "Couple Room (Double Bed)",
     description: "10:00 AM – Next Day 8:00 AM. Double Bed room.",
     facilityType: "ROOM",
     pricingType: "FIXED",
@@ -116,6 +116,7 @@ const facilityData = [
     facilityType: "ITEM",
     pricingType: "PER_ITEM",
     baseRate: 600.0,
+    inventoryCount: 50,
     pricingDetails: { is_atomic: true },
     securityDeposit: 0.0,
     imageFiles: ["four_bedroom_1.jpeg", "four_bedroom_2.jpeg"],
@@ -154,8 +155,8 @@ const facilityData = [
         { name: "Kitchen", quantity: 1 },
         { name: "Lawn", quantity: 1 },
         { name: "Parking", quantity: 1 },
-        { name: "Day Room (4 Bedded)", quantity: 10 },
-        { name: "Day Room (Double Bed)", quantity: 2 },
+        { name: "Family Room (4 Bedded)", quantity: 10 },
+        { name: "Couple Room (Double Bed)", quantity: 2 },
         { name: "Dormitory (15 persons)", quantity: 3 },
       ],
     },
@@ -289,6 +290,64 @@ const facilityData = [
     },
     securityDeposit: 0.0,
     imageFiles: ["four_bedroom_1.jpeg", "four_bedroom_2.jpeg"],
+  },
+  {
+    name: "10 Family Rooms + 2 Couple Rooms",
+    description:
+      "Package including 10 Day Rooms (4 Bedded) and 2 Day Rooms (Double Bed).",
+    facilityType: "PACKAGE",
+    pricingType: "FIXED",
+    baseRate: 26000.0,
+    pricingDetails: {
+      included_facilities: [
+        { name: "Family Room (4 Bedded)", quantity: 10 },
+        { name: "Couple Room (Double Bed)", quantity: 2 },
+      ],
+    },
+    securityDeposit: 0.0,
+    imageFiles: ["four_bedroom_1.jpeg", "double_bedroom_1.jpeg"],
+  },
+  {
+    name: "10 Family Rooms + 2 Couple Rooms + 3 Dormitories",
+    description:
+      "Package including 10 Day Rooms (4 Bedded), 2 Day Rooms (Double Bed), and 3 Dormitories.",
+    facilityType: "PACKAGE",
+    pricingType: "FIXED",
+    baseRate: 55000.0,
+    pricingDetails: {
+      included_facilities: [
+        { name: "Family Room (4 Bedded)", quantity: 10 },
+        { name: "Couple Room (Double Bed)", quantity: 2 },
+        { name: "Dormitory (15 persons)", quantity: 3 },
+      ],
+    },
+    securityDeposit: 0.0,
+    imageFiles: [
+      "four_bedroom_1.jpeg",
+      "double_bedroom_1.jpeg",
+      "four_bedroom_2.jpeg",
+    ],
+  },
+  {
+    name: "10 Family Rooms + 2 Couple Rooms + 2 Dormitories",
+    description:
+      "Package including 10 Day Rooms (4 Bedded), 2 Day Rooms (Double Bed), and 2 Dormitories.",
+    facilityType: "PACKAGE",
+    pricingType: "FIXED",
+    baseRate: 45000.0,
+    pricingDetails: {
+      included_facilities: [
+        { name: "Family Room (4 Bedded)", quantity: 10 },
+        { name: "Couple Room (Double Bed)", quantity: 2 },
+        { name: "Dormitory (15 persons)", quantity: 2 },
+      ],
+    },
+    securityDeposit: 0.0,
+    imageFiles: [
+      "four_bedroom_1.jpeg",
+      "double_bedroom_1.jpeg",
+      "four_bedroom_2.jpeg",
+    ],
   },
 ];
 
