@@ -246,9 +246,12 @@ export class BookingController {
    */
   checkInBooking = async (req, res, next) => {
     const { bookingId } = req.params;
+    const checkInData = req.body;
 
-    const checkedInBooking =
-      await this.bookingService.checkInBooking(bookingId);
+    const checkedInBooking = await this.bookingService.checkInBooking(
+      bookingId,
+      checkInData,
+    );
 
     const formattedBooking = new BookingResponseDto(checkedInBooking);
 

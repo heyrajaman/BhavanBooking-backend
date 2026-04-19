@@ -21,6 +21,9 @@ export class AdminService {
     adminUserId,
     revisedTotalAmount,
     overrideSecurityDeposit,
+    isHoldingAllowed,
+    holdingPercentage,
+    holdingValidityDays,
   ) {
     const existingBooking = await this.bookingService.findById(bookingId);
 
@@ -62,6 +65,15 @@ export class AdminService {
           );
         }
         existingBooking.securityDeposit = overrideSecurityDeposit;
+      }
+
+      existingBooking.isHoldingAllowed = isHoldingAllowed || false;
+      if (isHoldingAllowed) {
+        existingBooking.holdingPercentage = holdingPercentage;
+        existingBooking.holdingValidityDays = holdingValidityDays;
+      } else {
+        existingBooking.holdingPercentage = null;
+        existingBooking.holdingValidityDays = null;
       }
 
       await existingBooking.save({ transaction });

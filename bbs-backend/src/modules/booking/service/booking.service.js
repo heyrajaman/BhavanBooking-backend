@@ -147,7 +147,6 @@ export class BookingService {
     const hashedPassword = await bcrypt.hash(plainTextPassword, 10);
 
     if (!user) {
-      // Create a new user if they don't exist in the system
       user = await this.userService.createUser({
         fullName: bookingData.fullName,
         mobile: bookingData.mobile,
@@ -159,13 +158,11 @@ export class BookingService {
       isNewUser = true;
     }
 
-    // 2. Validate availability and calculate price using your existing core logic!
     const { totalAmount, totalSecurityDeposit, mainFacilityId, customDetails } =
       await this.bookingPricingService.processAndValidateBookingItems(
         bookingData,
       );
 
-    // 3. Create the Booking
     const newBooking = await this.bookingRepository.create({
       userId: user.id,
       facilityId: mainFacilityId,
@@ -177,6 +174,13 @@ export class BookingService {
       calculatedAmount: totalAmount,
       securityDeposit: totalSecurityDeposit,
       status: "PENDING_ADMIN_APPROVAL",
+      isHoldingAllowed: bookingData.isHoldingAllowed || false,
+      holdingPercentage: bookingData.isHoldingAllowed
+        ? bookingData.holdingPercentage
+        : null,
+      holdingValidityDays: bookingData.isHoldingAllowed
+        ? bookingData.holdingValidityDays
+        : null,
     });
 
     return { newBooking, user, isNewUser };
@@ -334,7 +338,7 @@ export class BookingService {
   }
 
   // Update the method signature
-  async checkInBooking(bookingId) {
+  async checkInBooking(bookingId, checkInData) {
     const booking = await this.bookingRepository.findById(bookingId);
 
     if (!booking) {
@@ -354,6 +358,10 @@ export class BookingService {
         `Full payment is required before check-in. Current payment status is ${booking.paymentStatus}. Please settle the remaining balance first.`,
         400,
       );
+    }
+
+    if (checkInData && checkInData.securityDepositCollected) {
+      booking.securityDepositStatus = "COLLECTED";
     }
 
     // Update the booking record

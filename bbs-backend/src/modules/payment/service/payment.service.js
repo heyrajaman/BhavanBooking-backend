@@ -45,24 +45,17 @@ export class PaymentService {
       );
     }
 
-    if (paymentOption === "HOLD") {
-      const msInMonth = 1000 * 60 * 60 * 24 * 30;
-      const timeUntilBooking =
-        new Date(booking.startTime).getTime() - new Date().getTime();
+    const totalCost = Number(booking.calculatedAmount);
+    let requiredAmount = totalCost;
 
-      if (timeUntilBooking <= msInMonth) {
+    if (paymentOption === "HOLD") {
+      if (!booking.isHoldingAllowed) {
         throw new AppError(
-          "Cannot place this booking on hold. The event is less than 1 month away, so full payment is required.",
+          "Holding option is not allowed for this booking.",
           400,
         );
       }
-    }
-
-    const totalCost =
-      Number(booking.calculatedAmount) + Number(booking.securityDeposit);
-    let requiredAmount = totalCost;
-    if (paymentOption === "HOLD") {
-      requiredAmount = totalCost * 0.2;
+      requiredAmount = totalCost * (Number(booking.holdingPercentage) / 100);
     }
 
     if (Number(amountCollected) < requiredAmount) {
@@ -78,14 +71,10 @@ export class PaymentService {
       booking.paymentStatus = "PARTIAL";
       booking.holdAmountPaid = requiredAmount;
 
-      const msInMonth = 1000 * 60 * 60 * 24 * 30;
-      const monthsAway = (new Date(booking.startTime) - new Date()) / msInMonth;
       const deadline = new Date();
-      if (monthsAway > 3) {
-        deadline.setDate(deadline.getDate() + 30);
-      } else {
-        deadline.setDate(deadline.getDate() + 7);
-      }
+      deadline.setDate(
+        deadline.getDate() + Number(booking.holdingValidityDays),
+      );
       booking.holdDeadline = deadline;
     } else {
       booking.status = "CONFIRMED";
@@ -148,24 +137,18 @@ export class PaymentService {
     }
 
     // Calculate total cost
-    const totalCost =
-      Number(booking.calculatedAmount) + Number(booking.securityDeposit);
+    const totalCost = Number(booking.calculatedAmount);
 
     // Determine the amount based on user's choice
     let amountToPay = totalCost;
     if (paymentOption === "HOLD") {
-      const msInMonth = 1000 * 60 * 60 * 24 * 30;
-      const timeUntilBooking =
-        new Date(booking.startTime).getTime() - new Date().getTime();
-
-      if (timeUntilBooking <= msInMonth) {
+      if (!booking.isHoldingAllowed) {
         throw new AppError(
-          "The 'Hold Date' option is only available for bookings more than 1 month away. Please select full payment to confirm your booking.",
+          "The holding option is not available for this booking. Full payment is required.",
           400,
         );
       }
-
-      amountToPay = totalCost * 0.2;
+      amountToPay = totalCost * (Number(booking.holdingPercentage) / 100);
     }
 
     if (paymentMode === "CASH" || paymentMode === "QR") {
@@ -211,7 +194,7 @@ export class PaymentService {
       amount: order.amount,
       currency: order.currency,
       bookingId: booking.id,
-      paymentOption: paymentOption, // 'HOLD' or 'FULL'
+      paymentOption: paymentOption,
       keyId: process.env.RAZORPAY_KEY_ID,
     };
   }
@@ -248,26 +231,19 @@ export class PaymentService {
     const orderDetails = await razorpayInstance.orders.fetch(razorpay_order_id);
     const amountPaidInRupees = orderDetails.amount / 100;
 
-    const totalCost =
-      Number(booking.calculatedAmount) + Number(booking.securityDeposit);
+    const totalCost = Number(booking.calculatedAmount);
 
-    const paymentOption =
-      amountPaidInRupees < totalCost * 0.5 ? "HOLD" : "FULL";
+    const paymentOption = amountPaidInRupees < totalCost ? "HOLD" : "FULL";
 
     if (paymentOption === "HOLD") {
       booking.status = "ON_HOLD";
       booking.paymentStatus = "PARTIAL";
       booking.holdAmountPaid = amountPaidInRupees;
 
-      const msInMonth = 1000 * 60 * 60 * 24 * 30;
-      const monthsAway = (new Date(booking.startTime) - new Date()) / msInMonth;
-
       const deadline = new Date();
-      if (monthsAway > 3) {
-        deadline.setDate(deadline.getDate() + 30);
-      } else {
-        deadline.setDate(deadline.getDate() + 7);
-      }
+      deadline.setDate(
+        deadline.getDate() + Number(booking.holdingValidityDays),
+      );
       booking.holdDeadline = deadline;
     } else {
       booking.status = "CONFIRMED";
@@ -328,8 +304,7 @@ export class PaymentService {
     }
 
     // Calculate the Remaining Amount
-    const totalCost =
-      Number(booking.calculatedAmount) + Number(booking.securityDeposit);
+    const totalCost = Number(booking.calculatedAmount);
     const advancePaid = Number(booking.holdAmountPaid || 0);
     const remainingAmount = totalCost - advancePaid;
 
@@ -429,8 +404,7 @@ export class PaymentService {
     }
 
     // Calculate the Remaining Amount
-    const totalCost =
-      Number(booking.calculatedAmount) + Number(booking.securityDeposit);
+    const totalCost = Number(booking.calculatedAmount);
     const advancePaid = Number(booking.holdAmountPaid || 0);
     const remainingAmount = totalCost - advancePaid;
 

@@ -40,13 +40,22 @@ export class AdminController {
       const { bookingId } = req.params;
       const adminUserId = req.user.id;
 
-      const { revisedTotalAmount, overrideSecurityDeposit } = req.body;
+      const {
+        revisedTotalAmount,
+        overrideSecurityDeposit,
+        isHoldingAllowed,
+        holdingPercentage,
+        holdingValidityDays,
+      } = req.body;
 
       const updatedBooking = await this.adminService.approveBooking(
         bookingId,
         adminUserId,
         revisedTotalAmount,
         overrideSecurityDeposit,
+        isHoldingAllowed,
+        holdingPercentage,
+        holdingValidityDays,
       );
 
       try {

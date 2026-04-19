@@ -3,7 +3,11 @@ export class InvoiceCalculatorService {
     const isDonation = dto.invoiceType === "DONATION";
     const invoiceType = dto.invoiceType || "GENERAL";
 
-    const securityDeposit = parseFloat(booking.securityDeposit || 0);
+    const securityDeposit =
+      booking.securityDepositStatus === "COLLECTED" ||
+      booking.securityDepositStatus === "FORFEITED"
+        ? parseFloat(booking.securityDeposit || 0)
+        : 0;
     const baseAmount = parseFloat(booking.calculatedAmount || 0);
     const holdAmountPaid = parseFloat(booking.holdAmountPaid || 0);
     const userId = customer.id;

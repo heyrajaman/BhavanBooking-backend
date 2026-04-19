@@ -64,6 +64,24 @@ export default class Booking extends Model {
           type: DataTypes.DATE,
           allowNull: true,
         },
+        isHoldingAllowed: {
+          type: DataTypes.BOOLEAN,
+          allowNull: false,
+          defaultValue: false,
+        },
+        holdingPercentage: {
+          type: DataTypes.DECIMAL(5, 2),
+          allowNull: true,
+        },
+        holdingValidityDays: {
+          type: DataTypes.INTEGER,
+          allowNull: true,
+        },
+        securityDepositStatus: {
+          type: DataTypes.ENUM("PENDING", "COLLECTED", "REFUNDED", "FORFEITED"),
+          allowNull: false,
+          defaultValue: "PENDING",
+        },
         holdAmountPaid: {
           type: DataTypes.DECIMAL(10, 2),
           allowNull: true,

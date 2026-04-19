@@ -72,7 +72,11 @@ export const generateReportDto = Joi.object({
 
 export const CheckInDto = Joi.object({
   remainingAmountPaid: Joi.number().min(0).optional(),
-  checkInPaymentMode: Joi.string().valid("ONLINE", "CASH", "QR").optional(), // <-- Added QR
+  checkInPaymentMode: Joi.string().valid("ONLINE", "CASH", "QR").optional(),
+  securityDepositCollected: Joi.boolean().required().messages({
+    "any.required":
+      "You must confirm if the security deposit was collected at check-in.",
+  }),
 });
 
 // Add this at the bottom of booking.request.dto.js
@@ -106,6 +110,29 @@ export const CreateBookingOnBehalfDto = Joi.object({
   endTime: Joi.date().iso().greater(Joi.ref("startTime")).required(),
   eventType: Joi.string().trim().required(),
   guestCount: Joi.number().integer().min(1).required(),
+  isHoldingAllowed: Joi.boolean().optional().default(false),
+
+  holdingPercentage: Joi.when("isHoldingAllowed", {
+    is: true,
+    then: Joi.number().min(1).max(100).required().messages({
+      "number.base": "Holding percentage must be a number.",
+      "number.min": "Holding percentage must be at least 1%.",
+      "number.max": "Holding percentage cannot exceed 100%.",
+      "any.required": "Holding percentage is required when holding is allowed.",
+    }),
+    otherwise: Joi.forbidden(),
+  }),
+
+  holdingValidityDays: Joi.when("isHoldingAllowed", {
+    is: true,
+    then: Joi.number().integer().min(1).required().messages({
+      "number.base": "Holding validity days must be a number.",
+      "number.min": "Holding validity days must be at least 1 day.",
+      "any.required":
+        "Holding validity days is required when holding is allowed.",
+    }),
+    otherwise: Joi.forbidden(),
+  }),
 })
   .or("facilityId", "customFacilities")
   .messages({
