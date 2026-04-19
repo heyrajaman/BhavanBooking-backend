@@ -132,6 +132,18 @@ const facilityData = [
     securityDeposit: 0.0,
     imageFiles: ["four_bedroom_1.jpeg", "four_bedroom_2.jpeg"],
   },
+  {
+    name: "Green Room",
+    description:
+      "Private room for getting ready (Only available via packages).",
+    facilityType: "ROOM",
+    pricingType: "FIXED",
+    baseRate: 0.0,
+    inventoryCount: 2,
+    pricingDetails: { is_atomic: false },
+    securityDeposit: 0.0,
+    imageFiles: ["double_bedroom_1.jpeg"],
+  },
 
   // ==========================================
   // 2. PACKAGES (Mapped to Atomic Facilities to prevent double-booking)
